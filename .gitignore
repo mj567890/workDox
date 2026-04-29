@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build output
+dist/
+*.egg-info/
+
+# Docker volumes
+data/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+celerybeat-schedule
+
+# Temporary files
+*.tmp
+deploy.py
+ssh_test.py
+check_server.py
+setup_ssh_key.py
+sync_*.py
+restart_services.py
+fix_compose.py
+fresh_start.py
+
+# Claude
+.claude/
+
+# Test
+.pytest_cache/
+.mypy_cache/
+coverage/
+htmlcov/

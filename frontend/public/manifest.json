@@ -1,0 +1,16 @@
+{
+  "name": "WorkDox - 工作文档协同平台",
+  "short_name": "WorkDox",
+  "description": "WorkDox — 让文档真正干活的协同工作平台",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f0f2f5",
+  "theme_color": "#001529",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}

@@ -1,0 +1,121 @@
+/* Mobile responsive overrides */
+
+@media (max-width: 767px) {
+  /* Make tables horizontally scrollable on mobile */
+  .el-table {
+    font-size: 13px;
+  }
+
+  /* Smaller cards on mobile */
+  .el-card {
+    margin-bottom: 12px;
+  }
+
+  .el-card__header {
+    padding: 12px 16px;
+    font-size: 14px;
+  }
+
+  .el-card__body {
+    padding: 12px 8px;
+  }
+
+  /* Full-width dialogs on mobile */
+  .el-dialog {
+    width: 95% !important;
+    margin-top: 5vh !important;
+  }
+
+  /* Smaller form items */
+  .el-form-item__label {
+    font-size: 13px;
+  }
+
+  /* Tighter spacing for descriptions */
+  .el-descriptions__label {
+    width: 80px !important;
+    font-size: 13px;
+  }
+
+  /* Make buttons more touch-friendly */
+  .el-button {
+    min-height: 36px;
+  }
+
+  .el-button--small {
+    min-height: 28px;
+  }
+
+  /* Sidebar mobile styles */
+  .mobile-drawer .el-drawer__body {
+    padding: 0;
+  }
+
+  /* Toolbar stacking on mobile */
+  .toolbar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .toolbar-left,
+  .toolbar-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  /* Document detail grid to single column */
+  .document-detail .el-row {
+    flex-direction: column;
+  }
+
+  .document-detail .el-col-16,
+  .document-detail .el-col-8 {
+    max-width: 100%;
+    flex: 0 0 100%;
+  }
+
+  /* Hide some desktop-only elements */
+  .desktop-only {
+    display: none !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .mobile-only {
+    display: none !important;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 768px) and (max-width: 991px) {
+  .el-col-sm-12 {
+    max-width: 50%;
+    flex: 0 0 50%;
+  }
+
+  .el-dialog {
+    width: 85% !important;
+  }
+}
+
+/* Touch-friendly tap targets */
+@media (pointer: coarse) {
+  .el-table__row {
+    min-height: 44px;
+  }
+
+  .el-menu-item {
+    min-height: 44px;
+  }
+
+  .el-dropdown-menu__item {
+    min-height: 36px;
+  }
+}
+
+/* Safe area for notched phones */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .app-layout {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
