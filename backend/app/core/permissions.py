@@ -34,6 +34,7 @@ class Permission(str, Enum):
     ADMIN_USER_MANAGE = "admin:user_manage"
     ADMIN_ROLE_MANAGE = "admin:role_manage"
     ADMIN_AUDIT_VIEW = "admin:audit_view"
+    ADMIN_REFDATA_MANAGE = "admin:refdata_manage"
 
     # Dashboard
     DASHBOARD_VIEW = "dashboard:view"

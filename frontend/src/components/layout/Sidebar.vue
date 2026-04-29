@@ -43,6 +43,9 @@
         <el-menu-item index="/admin/users">用户管理</el-menu-item>
         <el-menu-item index="/admin/roles">角色管理</el-menu-item>
         <el-menu-item index="/admin/departments">部门管理</el-menu-item>
+        <el-menu-item index="/admin/document-categories">文档分类</el-menu-item>
+        <el-menu-item index="/admin/tags">标签管理</el-menu-item>
+        <el-menu-item index="/admin/matter-types">事项类型</el-menu-item>
       </el-sub-menu>
       <el-menu-item index="/audit" v-if="canViewAuditLogs">
         <el-icon><Document /></el-icon>

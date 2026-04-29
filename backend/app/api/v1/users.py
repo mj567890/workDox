@@ -12,12 +12,15 @@ from app.core.pagination import PaginationParams
 from app.models.user import User
 from app.models.role import Role
 from app.models.department import Department
-from app.services.user_service import UserService, RoleService, DepartmentService
+from app.services.user_service import UserService, RoleService, DepartmentService, DocumentCategoryService, TagService, MatterTypeService
 
 router = APIRouter()
 user_service = UserService()
 role_service = RoleService()
 department_service = DepartmentService()
+category_service = DocumentCategoryService()
+tag_service = TagService()
+matter_type_service = MatterTypeService()
 
 
 # ---------- Pydantic Schemas ----------
@@ -124,6 +127,79 @@ class DepartmentTreeOut(BaseModel):
     code: str
     parent_id: int | None
     children: list["DepartmentTreeOut"] = []
+
+    class Config:
+        from_attributes = True
+
+
+class DocumentCategoryCreate(BaseModel):
+    name: str
+    code: str
+    description: str | None = None
+    sort_order: int = 0
+
+
+class DocumentCategoryUpdate(BaseModel):
+    name: str | None = None
+    code: str | None = None
+    description: str | None = None
+    sort_order: int | None = None
+
+
+class DocumentCategoryOut(BaseModel):
+    id: int
+    name: str
+    code: str
+    description: str | None
+    sort_order: int
+    is_system: bool
+    created_at: str | None
+    updated_at: str | None
+
+    class Config:
+        from_attributes = True
+
+
+class TagCreate(BaseModel):
+    name: str
+    color: str = "#409EFF"
+
+
+class TagUpdate(BaseModel):
+    name: str | None = None
+    color: str | None = None
+
+
+class TagOut(BaseModel):
+    id: int
+    name: str
+    color: str
+    created_at: str | None
+    updated_at: str | None
+
+    class Config:
+        from_attributes = True
+
+
+class MatterTypeCreate(BaseModel):
+    name: str
+    code: str
+    description: str | None = None
+
+
+class MatterTypeUpdate(BaseModel):
+    name: str | None = None
+    code: str | None = None
+    description: str | None = None
+
+
+class MatterTypeOut(BaseModel):
+    id: int
+    name: str
+    code: str
+    description: str | None
+    created_at: str | None
+    updated_at: str | None
 
     class Config:
         from_attributes = True
@@ -337,6 +413,208 @@ async def delete_department(
     await department_service.delete_department(db, dept_id)
     await cache.delete_pattern("users:departments*")
     return {"detail": "Department deleted successfully"}
+
+
+def _category_to_out(c: "DocumentCategory") -> DocumentCategoryOut:
+    from app.models.document import DocumentCategory
+    return DocumentCategoryOut(
+        id=c.id,
+        name=c.name,
+        code=c.code,
+        description=c.description,
+        sort_order=c.sort_order,
+        is_system=c.is_system,
+        created_at=c.created_at.isoformat() if c.created_at else None,
+        updated_at=c.updated_at.isoformat() if c.updated_at else None,
+    )
+
+
+def _tag_to_out(t: "Tag") -> TagOut:
+    from app.models.document import Tag
+    return TagOut(
+        id=t.id,
+        name=t.name,
+        color=t.color,
+        created_at=t.created_at.isoformat() if t.created_at else None,
+        updated_at=t.updated_at.isoformat() if t.updated_at else None,
+    )
+
+
+def _matter_type_to_out(mt: "MatterType") -> MatterTypeOut:
+    from app.models.document import MatterType
+    return MatterTypeOut(
+        id=mt.id,
+        name=mt.name,
+        code=mt.code,
+        description=mt.description,
+        created_at=mt.created_at.isoformat() if mt.created_at else None,
+        updated_at=mt.updated_at.isoformat() if mt.updated_at else None,
+    )
+
+
+# ---------- Document Category Routes ----------
+
+@router.get("/document-categories", response_model=list[DocumentCategoryOut])
+async def list_document_categories(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    cached = await cache.get("users:document_categories")
+    if cached:
+        return [DocumentCategoryOut(**item) for item in cached]
+
+    pagination = PaginationParams(page=1, page_size=500)
+    categories, _ = await category_service.get_categories(db, pagination)
+    cat_list = [_category_to_out(c) for c in categories]
+    await cache.set("users:document_categories", [c.model_dump() for c in cat_list], ttl=600)
+    return cat_list
+
+
+@router.post("/document-categories", response_model=DocumentCategoryOut)
+async def create_document_category(
+    data: DocumentCategoryCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(check_permission(Permission.ADMIN_REFDATA_MANAGE)),
+):
+    category = await category_service.create_category(db, data)
+    await cache.delete("users:document_categories")
+    return _category_to_out(category)
+
+
+@router.put("/document-categories/{category_id}", response_model=DocumentCategoryOut)
+async def update_document_category(
+    category_id: int,
+    data: DocumentCategoryUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(check_permission(Permission.ADMIN_REFDATA_MANAGE)),
+):
+    category = await category_service.update_category(db, category_id, data)
+    await cache.delete("users:document_categories")
+    return _category_to_out(category)
+
+
+@router.delete("/document-categories/{category_id}")
+async def delete_document_category(
+    category_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(check_permission(Permission.ADMIN_REFDATA_MANAGE)),
+):
+    await category_service.delete_category(db, category_id)
+    await cache.delete("users:document_categories")
+    return {"detail": "Document category deleted successfully"}
+
+
+# ---------- Tag Routes ----------
+
+@router.get("/tags", response_model=list[TagOut])
+async def list_tags(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    cached = await cache.get("users:tags")
+    if cached:
+        return [TagOut(**item) for item in cached]
+
+    pagination = PaginationParams(page=1, page_size=500)
+    tags, _ = await tag_service.get_tags(db, pagination)
+    tag_list = [_tag_to_out(t) for t in tags]
+    await cache.set("users:tags", [t.model_dump() for t in tag_list], ttl=600)
+    return tag_list
+
+
+@router.post("/tags", response_model=TagOut)
+async def create_tag(
+    data: TagCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(check_permission(Permission.ADMIN_REFDATA_MANAGE)),
+):
+    tag = await tag_service.create_tag(db, data)
+    await cache.delete("users:tags")
+    return _tag_to_out(tag)
+
+
+@router.put("/tags/{tag_id}", response_model=TagOut)
+async def update_tag(
+    tag_id: int,
+    data: TagUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(check_permission(Permission.ADMIN_REFDATA_MANAGE)),
+):
+    tag = await tag_service.update_tag(db, tag_id, data)
+    await cache.delete("users:tags")
+    return _tag_to_out(tag)
+
+
+@router.delete("/tags/{tag_id}")
+async def delete_tag(
+    tag_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(check_permission(Permission.ADMIN_REFDATA_MANAGE)),
+):
+    await tag_service.delete_tag(db, tag_id)
+    await cache.delete("users:tags")
+    return {"detail": "Tag deleted successfully"}
+
+
+# ---------- Matter Type Routes ----------
+
+@router.get("/matter-types", response_model=list[MatterTypeOut])
+async def list_matter_types(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    cached = await cache.get("users:matter_types")
+    if cached:
+        return [MatterTypeOut(**item) for item in cached]
+
+    pagination = PaginationParams(page=1, page_size=500)
+    matter_types, _ = await matter_type_service.get_matter_types(db, pagination)
+    mt_list = [_matter_type_to_out(mt) for mt in matter_types]
+    await cache.set("users:matter_types", [m.model_dump() for m in mt_list], ttl=600)
+    return mt_list
+
+
+@router.post("/matter-types", response_model=MatterTypeOut)
+async def create_matter_type(
+    data: MatterTypeCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(check_permission(Permission.ADMIN_REFDATA_MANAGE)),
+):
+    matter_type = await matter_type_service.create_matter_type(db, data)
+    await cache.delete("users:matter_types")
+    return _matter_type_to_out(matter_type)
+
+
+@router.put("/matter-types/{type_id}", response_model=MatterTypeOut)
+async def update_matter_type(
+    type_id: int,
+    data: MatterTypeUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(check_permission(Permission.ADMIN_REFDATA_MANAGE)),
+):
+    matter_type = await matter_type_service.update_matter_type(db, type_id, data)
+    await cache.delete("users:matter_types")
+    return _matter_type_to_out(matter_type)
+
+
+@router.delete("/matter-types/{type_id}")
+async def delete_matter_type(
+    type_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _: None = Depends(check_permission(Permission.ADMIN_REFDATA_MANAGE)),
+):
+    await matter_type_service.delete_matter_type(db, type_id)
+    await cache.delete("users:matter_types")
+    return {"detail": "Matter type deleted successfully"}
 
 
 # ---------- User Detail Routes (/{user_id}) ----------

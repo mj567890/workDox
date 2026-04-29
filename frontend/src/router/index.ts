@@ -91,6 +91,24 @@ const routes: RouteRecordRaw[] = [
         meta: { roles: ['admin'] },
       },
       {
+        path: 'admin/document-categories',
+        name: 'DocumentCategoryManagement',
+        component: () => import('@/views/admin/DocumentCategoryManagementView.vue'),
+        meta: { roles: ['admin'] },
+      },
+      {
+        path: 'admin/tags',
+        name: 'TagManagement',
+        component: () => import('@/views/admin/TagManagementView.vue'),
+        meta: { roles: ['admin'] },
+      },
+      {
+        path: 'admin/matter-types',
+        name: 'MatterTypeManagement',
+        component: () => import('@/views/admin/MatterTypeManagementView.vue'),
+        meta: { roles: ['admin'] },
+      },
+      {
         path: 'audit',
         name: 'AuditLogs',
         component: () => import('@/views/audit/AuditLogView.vue'),

@@ -5,6 +5,8 @@ from sqlalchemy.orm import selectinload
 from app.models.user import User
 from app.models.role import Role
 from app.models.department import Department
+from app.models.document import DocumentCategory, Tag, Document
+from app.models.matter import Matter
 from app.core.security import hash_password, verify_password
 from app.core.pagination import PaginationParams
 from app.core.exceptions import (
@@ -414,5 +416,291 @@ class DepartmentService:
             )
 
         await db.delete(dept)
+        await db.commit()
+        return True
+
+
+class DocumentCategoryService:
+
+    async def create_category(self, db: AsyncSession, data: "DocumentCategoryCreate") -> DocumentCategory:
+        existing = await db.execute(
+            select(DocumentCategory).where(DocumentCategory.code == data.code)
+        )
+        if existing.scalars().first():
+            raise ConflictException(
+                detail=f"Category code '{data.code}' already exists"
+            )
+
+        category = DocumentCategory(
+            name=data.name,
+            code=data.code,
+            description=data.description,
+            sort_order=data.sort_order,
+        )
+        db.add(category)
+        await db.commit()
+        await db.refresh(category)
+        return category
+
+    async def get_category(self, db: AsyncSession, category_id: int) -> DocumentCategory:
+        stmt = select(DocumentCategory).where(DocumentCategory.id == category_id)
+        result = await db.execute(stmt)
+        category = result.scalars().first()
+        if not category:
+            raise NotFoundException(resource="DocumentCategory")
+        return category
+
+    async def get_categories(
+        self, db: AsyncSession, pagination: PaginationParams
+    ) -> tuple[list[DocumentCategory], int]:
+        base_query = select(DocumentCategory)
+
+        count_query = select(func.count()).select_from(base_query.subquery())
+        count_result = await db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        stmt = (
+            base_query
+            .order_by(DocumentCategory.sort_order, DocumentCategory.id)
+            .offset(pagination.offset)
+            .limit(pagination.limit)
+        )
+        result = await db.execute(stmt)
+        items = result.scalars().all()
+
+        return list(items), total
+
+    async def update_category(
+        self, db: AsyncSession, category_id: int, data: "DocumentCategoryUpdate"
+    ) -> DocumentCategory:
+        category = await self.get_category(db, category_id)
+
+        update_data = data.model_dump(exclude_unset=True)
+
+        if "code" in update_data:
+            existing = await db.execute(
+                select(DocumentCategory).where(
+                    DocumentCategory.code == update_data["code"],
+                    DocumentCategory.id != category_id,
+                )
+            )
+            if existing.scalars().first():
+                raise ConflictException(
+                    detail=f"Category code '{update_data['code']}' already exists"
+                )
+
+        for key, value in update_data.items():
+            if hasattr(category, key) and key not in ("id", "is_system"):
+                setattr(category, key, value)
+
+        await db.commit()
+        await db.refresh(category)
+        return category
+
+    async def delete_category(self, db: AsyncSession, category_id: int) -> bool:
+        category = await self.get_category(db, category_id)
+
+        if category.is_system:
+            raise ConflictException(
+                detail="Cannot delete system category"
+            )
+
+        docs_result = await db.execute(
+            select(Document).where(Document.category_id == category_id)
+        )
+        if docs_result.scalars().first():
+            raise ConflictException(
+                detail="Cannot delete category with assigned documents"
+            )
+
+        await db.delete(category)
+        await db.commit()
+        return True
+
+
+class TagService:
+
+    async def create_tag(self, db: AsyncSession, data: "TagCreate") -> Tag:
+        existing = await db.execute(
+            select(Tag).where(Tag.name == data.name)
+        )
+        if existing.scalars().first():
+            raise ConflictException(
+                detail=f"Tag name '{data.name}' already exists"
+            )
+
+        tag = Tag(
+            name=data.name,
+            color=data.color,
+        )
+        db.add(tag)
+        await db.commit()
+        await db.refresh(tag)
+        return tag
+
+    async def get_tag(self, db: AsyncSession, tag_id: int) -> Tag:
+        stmt = select(Tag).where(Tag.id == tag_id)
+        result = await db.execute(stmt)
+        tag = result.scalars().first()
+        if not tag:
+            raise NotFoundException(resource="Tag")
+        return tag
+
+    async def get_tags(
+        self, db: AsyncSession, pagination: PaginationParams
+    ) -> tuple[list[Tag], int]:
+        base_query = select(Tag)
+
+        count_query = select(func.count()).select_from(base_query.subquery())
+        count_result = await db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        stmt = (
+            base_query
+            .order_by(Tag.id)
+            .offset(pagination.offset)
+            .limit(pagination.limit)
+        )
+        result = await db.execute(stmt)
+        items = result.scalars().all()
+
+        return list(items), total
+
+    async def update_tag(
+        self, db: AsyncSession, tag_id: int, data: "TagUpdate"
+    ) -> Tag:
+        tag = await self.get_tag(db, tag_id)
+
+        update_data = data.model_dump(exclude_unset=True)
+
+        if "name" in update_data:
+            existing = await db.execute(
+                select(Tag).where(
+                    Tag.name == update_data["name"],
+                    Tag.id != tag_id,
+                )
+            )
+            if existing.scalars().first():
+                raise ConflictException(
+                    detail=f"Tag name '{update_data['name']}' already exists"
+                )
+
+        for key, value in update_data.items():
+            if hasattr(tag, key) and key != "id":
+                setattr(tag, key, value)
+
+        await db.commit()
+        await db.refresh(tag)
+        return tag
+
+    async def delete_tag(self, db: AsyncSession, tag_id: int) -> bool:
+        tag = await self.get_tag(db, tag_id)
+
+        from app.models.document import DocumentTag
+        refs_result = await db.execute(
+            select(DocumentTag).where(DocumentTag.tag_id == tag_id)
+        )
+        if refs_result.scalars().first():
+            raise ConflictException(
+                detail="Cannot delete tag that is assigned to documents"
+            )
+
+        await db.delete(tag)
+        await db.commit()
+        return True
+
+
+class MatterTypeService:
+
+    async def create_matter_type(self, db: AsyncSession, data: "MatterTypeCreate") -> "MatterType":
+        from app.models.document import MatterType as MT
+        existing = await db.execute(
+            select(MT).where(MT.code == data.code)
+        )
+        if existing.scalars().first():
+            raise ConflictException(
+                detail=f"Matter type code '{data.code}' already exists"
+            )
+
+        matter_type = MT(
+            name=data.name,
+            code=data.code,
+            description=data.description,
+        )
+        db.add(matter_type)
+        await db.commit()
+        await db.refresh(matter_type)
+        return matter_type
+
+    async def get_matter_type(self, db: AsyncSession, type_id: int) -> "MatterType":
+        from app.models.document import MatterType as MT
+        stmt = select(MT).where(MT.id == type_id)
+        result = await db.execute(stmt)
+        matter_type = result.scalars().first()
+        if not matter_type:
+            raise NotFoundException(resource="MatterType")
+        return matter_type
+
+    async def get_matter_types(
+        self, db: AsyncSession, pagination: PaginationParams
+    ) -> tuple[list["MatterType"], int]:
+        from app.models.document import MatterType as MT
+        base_query = select(MT)
+
+        count_query = select(func.count()).select_from(base_query.subquery())
+        count_result = await db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        stmt = (
+            base_query
+            .order_by(MT.id)
+            .offset(pagination.offset)
+            .limit(pagination.limit)
+        )
+        result = await db.execute(stmt)
+        items = result.scalars().all()
+
+        return list(items), total
+
+    async def update_matter_type(
+        self, db: AsyncSession, type_id: int, data: "MatterTypeUpdate"
+    ) -> "MatterType":
+        from app.models.document import MatterType as MT
+        matter_type = await self.get_matter_type(db, type_id)
+
+        update_data = data.model_dump(exclude_unset=True)
+
+        if "code" in update_data:
+            existing = await db.execute(
+                select(MT).where(
+                    MT.code == update_data["code"],
+                    MT.id != type_id,
+                )
+            )
+            if existing.scalars().first():
+                raise ConflictException(
+                    detail=f"Matter type code '{update_data['code']}' already exists"
+                )
+
+        for key, value in update_data.items():
+            if hasattr(matter_type, key) and key != "id":
+                setattr(matter_type, key, value)
+
+        await db.commit()
+        await db.refresh(matter_type)
+        return matter_type
+
+    async def delete_matter_type(self, db: AsyncSession, type_id: int) -> bool:
+        matter_type = await self.get_matter_type(db, type_id)
+
+        matters_result = await db.execute(
+            select(Matter).where(Matter.type_id == type_id)
+        )
+        if matters_result.scalars().first():
+            raise ConflictException(
+                detail="Cannot delete matter type with assigned matters"
+            )
+
+        await db.delete(matter_type)
         await db.commit()
         return True
