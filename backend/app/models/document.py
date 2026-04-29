@@ -59,6 +59,7 @@ class Document(Base, TimestampMixin):
     permission_scope: Mapped[str] = mapped_column(String(30), default="matter")
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     preview_pdf_path: Mapped[str | None] = mapped_column(String(500))
+    preview_html_path: Mapped[str | None] = mapped_column(String(500))
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     embedding = mapped_column(Vector(768), nullable=True)
 

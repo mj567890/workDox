@@ -121,6 +121,40 @@
 | LibreOffice | 7.4.7.2，已装于 backend/worker/beat |
 | 前端 | 含 AI 聊天界面 + 文档删除按钮 + 预览 |
 | 数据库 | 3 个 stale draft 文档已软删除 |
+| HTML 预览 | LibreOffice → HTML，iframe srcdoc 内嵌展示 |
+
+## 五、预览升级：LibreOffice HTML 转换 (2026-04-30)
+
+### 背景
+此前预览链路为：PDF 转换 → MinIO → 预签名 URL → 浏览器下载 PDF。两个问题：
+1. 系统无 PDF 内嵌组件，浏览器只能强制下载
+2. PDF 中文乱码（字体缺失）
+
+后改为文本提取方案，但纯文本丢失了表格、加粗、标题等排版信息。
+
+### 方案：LibreOffice → HTML → iframe srcdoc
+- **保留格式**：HTML 保留了表格、粗体、斜体、标题、列表等 Word/Excel/PPT 排版
+- **内嵌展示**：使用 `<iframe srcdoc>` 隔离样式，不污染页面也不被页面污染
+- **三层回退**：HTML 预览 → 文本提取 → 不支持提示
+
+### 变更文件（6个）
+
+| 文件 | 变更 |
+|------|------|
+| `backend/app/tasks/preview_tasks.py` | `convert_to_pdf` → `convert_to_html`，`--convert-to html`，上传 `preview/{id}/preview.html` |
+| `backend/app/models/document.py` | +`preview_html_path` 列 |
+| `backend/alembic/versions/add_preview_html_path.py` | DDL 迁移：`ALTER TABLE document ADD COLUMN preview_html_path` |
+| `backend/app/api/v1/documents.py` | `get_preview_text` 优先检查 HTML；上传时 dispatch `convert_to_html` |
+| `frontend/src/api/documents.ts` | `PreviewText.format` 新增 `'html'` |
+| `frontend/src/views/documents/DocumentDetailView.vue` | `<iframe srcdoc>` 展示 HTML 格式预览 |
+
+### 预览优先级
+```
+get_preview_text(doc_id)
+  ├── 1. preview_html_path 存在 → MinIO 下载 HTML → format: "html" → iframe srcdoc
+  ├── 2. extracted_text 有缓存或支持提取 → format: "markdown"/"text" → pre/v-html
+  └── 3. 不支持 → format: "text", has_content: false
+```
 
 ## 验证命令
 

@@ -420,6 +420,10 @@ async def upload_document(
     original_name_for_extract = file.filename
     asyncio.create_task(_background_extract(db, doc_id_for_extract, content, file_type_for_extract, original_name_for_extract))
 
+    # Dispatch HTML preview generation (LibreOffice, Celery with independent session)
+    from app.tasks.preview_tasks import convert_to_html
+    convert_to_html.delay(doc.id, storage_path, file_type)
+
     # Re-query with eager loads
     result = await db.execute(
         select(Document)
@@ -559,9 +563,9 @@ async def complete_chunked_upload(
     # Fire-and-forget text extraction
     asyncio.create_task(_background_extract(db, doc.id, merged_data, file_type, data.filename))
 
-    # Dispatch preview PDF generation (LibreOffice, Celery with independent session)
-    from app.tasks.preview_tasks import convert_to_pdf
-    convert_to_pdf.delay(doc.id, storage_path, file_type)
+    # Dispatch HTML preview generation (LibreOffice, Celery with independent session)
+    from app.tasks.preview_tasks import convert_to_html
+    convert_to_html.delay(doc.id, storage_path, file_type)
 
     # Re-query with eager loads
     result = await db.execute(
@@ -755,6 +759,98 @@ async def get_preview_url(
     else:
         url = minio_client.get_presigned_url(doc.storage_path)
         return {"url": url, "status": "ready", "is_original": True}
+
+
+@router.get("/{doc_id}/preview-text")
+async def get_preview_text(
+    doc_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return preview content for in-page display.
+
+    Priority:
+    1. LibreOffice HTML preview (preview_html_path) — preserves formatting/tables
+    2. Extracted text (cached or on-the-fly) — plain text / markdown
+    3. Unsupported fallback
+    """
+    current_user_dict = _user_to_dict(current_user)
+    doc = await document_service.get_document(db, doc_id, current_user_dict)
+
+    # ---- Priority 1: HTML preview from LibreOffice (office formats only) ----
+    # Only use HTML preview for formats that benefit from LibreOffice conversion.
+    # Text-based formats (md, txt, code, etc.) are better served by text extraction.
+    OFFICE_FORMATS = frozenset({
+        'docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt',
+        'odt', 'ods', 'odp', 'rtf', 'wps', 'et', 'dps',
+    })
+    file_type = doc.file_type.lower()
+    can_generate_html = file_type in OFFICE_FORMATS
+
+    if can_generate_html:
+        preview_html_path = getattr(doc, 'preview_html_path', None)
+        if preview_html_path:
+            try:
+                html_data = minio_client.download_file(preview_html_path)
+                if html_data:
+                    html_content = html_data.decode("utf-8", errors="replace")
+                    return {
+                        "content": html_content[:500000],
+                        "format": "html",
+                        "has_content": True,
+                        "can_generate_html": True,
+                    }
+            except Exception:
+                pass  # Fall through to text extraction
+
+    # ---- Priority 2: Extracted text ----
+    content = None
+
+    if doc.extracted_text:
+        content = doc.extracted_text
+    elif is_supported(file_type):
+        try:
+            data = minio_client.download_file(doc.storage_path)
+            if data:
+                extracted = extract_text(data, file_type, doc.original_name)
+                if extracted:
+                    content = extracted
+        except Exception:
+            pass
+
+    if content:
+        is_markdown = file_type in ("md", "markdown", "mdown")
+        return {
+            "content": content[:100000],  # cap at 100KB for display
+            "format": "markdown" if is_markdown else "text",
+            "has_content": True,
+            "can_generate_html": can_generate_html,
+        }
+
+    # ---- Priority 3: Unsupported ----
+    return {
+        "content": None,
+        "format": "text",
+        "has_content": False,
+        "detail": f"No preview available for {file_type} files.",
+        "can_generate_html": can_generate_html,
+    }
+
+
+@router.post("/{doc_id}/generate-preview")
+async def generate_preview(
+    doc_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Trigger LibreOffice HTML preview generation for an existing document."""
+    current_user_dict = _user_to_dict(current_user)
+    doc = await document_service.get_document(db, doc_id, current_user_dict)
+
+    from app.tasks.preview_tasks import convert_to_html
+    convert_to_html.delay(doc.id, doc.storage_path, doc.file_type)
+
+    return {"detail": "HTML preview generation started"}
 
 
 @router.get("/{doc_id}/versions", response_model=list[VersionOut])

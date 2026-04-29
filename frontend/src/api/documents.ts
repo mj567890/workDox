@@ -116,6 +116,14 @@ export interface GraphLink {
   label: string
 }
 
+export interface PreviewText {
+  content: string | null
+  format: 'markdown' | 'text' | 'html'
+  has_content: boolean
+  detail?: string
+  can_generate_html?: boolean
+}
+
 export interface GraphData {
   nodes: GraphNode[]
   links: GraphLink[]
@@ -144,6 +152,8 @@ export const documentsApi = {
   }),
   download: (id: number) => get<Blob>(`/documents/${id}/download`),
   getPreview: (id: number) => get<{ url: string; status: string }>(`/documents/${id}/preview`),
+  getPreviewText: (id: number) => get<PreviewText>(`/documents/${id}/preview-text`),
+  generatePreview: (id: number) => post(`/documents/${id}/generate-preview`),
   getVersions: (id: number) => get<DocumentVersion[]>(`/documents/${id}/versions`),
   uploadVersion: (id: number, data: FormData) => post<DocumentVersion>(`/documents/${id}/versions`, data, {
     headers: { 'Content-Type': 'multipart/form-data' },
