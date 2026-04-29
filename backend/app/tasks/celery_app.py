@@ -35,4 +35,4 @@ celery_app.conf.update(
     },
 )
 
-celery_app.autodiscover_tasks(["app.tasks.preview_tasks", "app.tasks.archive_tasks", "app.tasks.search_tasks", "app.tasks.notification_tasks"])
+celery_app.autodiscover_tasks(["app.tasks.preview_tasks", "app.tasks.archive_tasks", "app.tasks.search_tasks", "app.tasks.notification_tasks", "app.tasks.embedding_tasks"])

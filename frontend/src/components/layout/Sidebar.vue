@@ -51,6 +51,10 @@
         <el-icon><Document /></el-icon>
         <span>操作日志</span>
       </el-menu-item>
+      <el-menu-item index="/ai/chat">
+        <el-icon><ChatDotRound /></el-icon>
+        <span>AI 助手</span>
+      </el-menu-item>
     </el-menu>
   </div>
 </template>

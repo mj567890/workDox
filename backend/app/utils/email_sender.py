@@ -99,12 +99,15 @@ env = Environment(loader=BaseLoader())
 
 class EmailSender:
     def __init__(self):
-        self.smtp_host = "smtp.126.com"
-        self.smtp_port = 25
-        self.username = "aremeng@126.com"
-        self.password = "JVwt3yqqXthgmcC6"
-        self.from_addr = "aremeng@126.com"
-        self.from_name = "ODMS 文档管理系统"
+        from app.config import get_settings
+        settings = get_settings()
+        self.smtp_host = settings.SMTP_HOST
+        self.smtp_port = settings.SMTP_PORT
+        self.username = settings.SMTP_USERNAME
+        self.password = settings.SMTP_PASSWORD
+        self.from_addr = settings.SMTP_FROM_ADDR or settings.SMTP_USERNAME
+        self.from_name = settings.SMTP_FROM_NAME
+        self.use_tls = settings.SMTP_USE_TLS
 
     def _render_template(self, template_name: str, context: dict) -> tuple:
         tpl = TEMPLATES.get(template_name)
@@ -140,7 +143,8 @@ class EmailSender:
 
         try:
             with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=30) as smtp:
-                smtp.starttls()
+                if self.use_tls:
+                    smtp.starttls()
                 smtp.login(self.username, self.password)
                 smtp.sendmail(
                     self.from_addr, [to_email] + (cc or []), msg.as_string()

@@ -95,6 +95,16 @@ def convert_to_pdf(self, doc_id: int, storage_path: str, file_type: str):
         # Update database
         db = next(get_sync_db())
         try:
+            # Ensure all model modules are loaded before accessing any model
+            import app.models.user  # noqa: F401
+            import app.models.role  # noqa: F401
+            import app.models.department  # noqa: F401
+            import app.models.matter  # noqa: F401
+            import app.models.document  # noqa: F401
+            import app.models.workflow  # noqa: F401
+            import app.models.task  # noqa: F401
+            import app.models.webhook  # noqa: F401
+            import app.models.ai  # noqa: F401
             from app.models.document import Document
 
             doc = db.execute(

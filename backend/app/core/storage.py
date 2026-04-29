@@ -12,14 +12,28 @@ settings = get_settings()
 
 class MinIOClient:
     def __init__(self):
+        self._endpoint = settings.MINIO_ENDPOINT
         self.client = Minio(
-            endpoint=settings.MINIO_ENDPOINT,
+            endpoint=self._endpoint,
             access_key=settings.MINIO_ACCESS_KEY,
             secret_key=settings.MINIO_SECRET_KEY,
             secure=settings.MINIO_SECURE,
         )
         self.bucket = settings.MINIO_BUCKET
         self._ensure_bucket()
+
+        # Secondary client for public-facing presigned URLs
+        # (signing is local, no network call needed)
+        self._public_endpoint = settings.MINIO_PUBLIC_ENDPOINT
+        if self._public_endpoint and self._public_endpoint != self._endpoint:
+            self._public_client = Minio(
+                endpoint=self._public_endpoint,
+                access_key=settings.MINIO_ACCESS_KEY,
+                secret_key=settings.MINIO_SECRET_KEY,
+                secure=settings.MINIO_SECURE,
+            )
+        else:
+            self._public_client = None
 
     def _ensure_bucket(self):
         if not self.client.bucket_exists(self.bucket):
@@ -46,8 +60,14 @@ class MinIOClient:
             return None
 
     def get_presigned_url(self, object_name: str, expires: int = 3600) -> Optional[str]:
+        """Generate a presigned URL for browser access.
+
+        Uses the public endpoint if configured, so the URL is reachable
+        from the user's browser (not just inside Docker network).
+        """
         try:
-            return self.client.presigned_get_object(
+            signer = self._public_client or self.client
+            return signer.presigned_get_object(
                 bucket_name=self.bucket,
                 object_name=object_name,
                 expires=timedelta(seconds=expires),

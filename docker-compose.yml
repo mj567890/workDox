@@ -48,7 +48,6 @@ services:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: odms-documents
-      JWT_SECRET_KEY: change-me-in-production
     ports:
       - "8000:8000"
     depends_on:

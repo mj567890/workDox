@@ -129,6 +129,11 @@ const routes: RouteRecordRaw[] = [
         name: 'WebhookManagement',
         component: () => import('@/views/profile/WebhookManagementView.vue'),
       },
+      {
+        path: 'ai/chat',
+        name: 'AIChat',
+        component: () => import('@/views/ai/AIChatView.vue'),
+      },
     ],
   },
 ]

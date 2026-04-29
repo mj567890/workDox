@@ -23,8 +23,8 @@ from app.utils.file_utils import detect_file_type, generate_storage_path, comput
 from app.services.document_service import (
     DocumentService, DocumentVersionService, DocumentLockService, CrossReferenceService, DocumentReviewService,
 )
-from app.services.document_intelligence import extract_and_store_text
-from app.utils.text_extractor import extract_text
+from app.services.document_intelligence import extract_and_store_text, find_similar_by_vector
+from app.utils.text_extractor import extract_text, is_supported
 from openpyxl import Workbook
 
 router = APIRouter()
@@ -193,7 +193,11 @@ class CompleteUploadRequest(BaseModel):
 async def _background_extract(db: AsyncSession, doc_id: int, file_data: bytes, file_type: str, original_name: str):
     """Background task to extract text from uploaded document."""
     try:
-        await extract_and_store_text(db, doc_id, file_data, file_type, original_name)
+        extracted = await extract_and_store_text(db, doc_id, file_data, file_type, original_name)
+        if extracted:
+            # Dispatch Celery task for embedding (uses independent session)
+            from app.tasks.embedding_tasks import embed_document_task
+            embed_document_task.delay(doc_id)
     except Exception:
         pass  # Silently ignore extraction failures in background
 
@@ -555,6 +559,10 @@ async def complete_chunked_upload(
     # Fire-and-forget text extraction
     asyncio.create_task(_background_extract(db, doc.id, merged_data, file_type, data.filename))
 
+    # Dispatch preview PDF generation (LibreOffice, Celery with independent session)
+    from app.tasks.preview_tasks import convert_to_pdf
+    convert_to_pdf.delay(doc.id, storage_path, file_type)
+
     # Re-query with eager loads
     result = await db.execute(
         select(Document)
@@ -702,8 +710,8 @@ async def delete_document(
     doc_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    _: None = Depends(check_permission(Permission.DOCUMENT_DELETE)),
 ):
+    """Delete a document. Owner, admin, or dept leader can delete."""
     current_user_dict = _user_to_dict(current_user)
     await document_service.soft_delete_document(db, doc_id, current_user_dict)
     return {"detail": "Document deleted successfully"}
@@ -742,11 +750,11 @@ async def get_preview_url(
 
     preview_pdf_path = getattr(doc, 'preview_pdf_path', None)
     if preview_pdf_path:
-        preview_url = minio_client.get_presigned_url(preview_pdf_path)
-        return {"preview_url": preview_url}
+        url = minio_client.get_presigned_url(preview_pdf_path)
+        return {"url": url, "status": "ready"}
     else:
         url = minio_client.get_presigned_url(doc.storage_path)
-        return {"preview_url": url, "is_original": True}
+        return {"url": url, "status": "ready", "is_original": True}
 
 
 @router.get("/{doc_id}/versions", response_model=list[VersionOut])
@@ -1142,7 +1150,7 @@ async def export_documents_excel(
 # ---------- Document Intelligence Routes ----------
 
 from app.services.document_intelligence import (
-    suggest_category, suggest_tags, find_similar_documents,
+    suggest_category, suggest_tags, find_similar_documents, find_similar_by_vector,
     find_similar_by_text, extract_and_store_text, get_document_graph_data,
 )
 
@@ -1185,7 +1193,7 @@ async def trigger_text_extraction(
     current_user_dict = _user_to_dict(current_user)
     doc = await document_service.get_document(db, doc_id, current_user_dict)
 
-    if doc.file_type not in ("txt", "docx", "pdf", "xlsx", "xls"):
+    if not is_supported(doc.file_type):
         return {"detail": f"Text extraction not supported for file type: {doc.file_type}", "extracted": False}
 
     try:
@@ -1212,6 +1220,20 @@ async def get_similar_documents(
     current_user_dict = _user_to_dict(current_user)
     await document_service.get_document(db, doc_id, current_user_dict)  # Verify access
     results = await find_similar_documents(db, doc_id, limit)
+    return [SimilarDocumentOut(**r) for r in results]
+
+
+@router.get("/{doc_id}/similar-vector", response_model=list[SimilarDocumentOut])
+async def get_similar_documents_vector(
+    doc_id: int,
+    limit: int = Query(10, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Find similar documents using vector similarity (pgvector cosine distance)."""
+    current_user_dict = _user_to_dict(current_user)
+    await document_service.get_document(db, doc_id, current_user_dict)
+    results = await find_similar_by_vector(db, doc_id, limit)
     return [SimilarDocumentOut(**r) for r in results]
 
 

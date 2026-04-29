@@ -58,6 +58,9 @@
                 <el-icon><Lock /></el-icon>锁定并下载
               </el-button>
               <el-button v-if="canEdit" size="small" @click="showVersionUpload = true">上传新版本</el-button>
+              <el-button v-if="canDeleteCurrentDoc" type="danger" size="small" @click="handleDeleteDocument">
+                <el-icon><Delete /></el-icon>删除文档
+              </el-button>
             </div>
             <el-timeline class="mt-20">
               <el-timeline-item
@@ -123,8 +126,20 @@
             <div v-else>
               <el-tag type="success" size="small" effect="light">已提取文本</el-tag>
               <span class="ml-8" style="font-size: 12px; color: #999">{{ extractedText.length }} 字符</span>
+              <div style="margin-top: 12px; display: flex; gap: 8px">
+                <el-button size="small" :loading="summarizing" @click="handleAISummarize">
+                  AI 摘要
+                </el-button>
+                <el-button size="small" type="primary" @click="handleAIAsk">
+                  AI 问答
+                </el-button>
+              </div>
             </div>
           </el-card>
+
+          <el-dialog v-model="showSummary" title="AI 摘要" width="600px">
+            <div style="line-height: 1.8; white-space: pre-wrap">{{ aiSummary }}</div>
+          </el-dialog>
         </el-col>
       </el-row>
 
@@ -190,7 +205,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { Lock, UploadFilled } from '@element-plus/icons-vue'
+import { Lock, UploadFilled, Delete } from '@element-plus/icons-vue'
 import { useDocumentStore } from '@/stores/documents'
 import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
@@ -202,11 +217,18 @@ import StatusTag from '@/components/common/StatusTag.vue'
 import DocumentApprovalPanel from './DocumentApprovalPanel.vue'
 import DocumentRelationGraph from '@/components/documents/DocumentRelationGraph.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
+import { aiApi } from '@/api/ai'
 
 const route = useRoute()
 const docStore = useDocumentStore()
 const authStore = useAuthStore()
 const { canEditDocument: canEdit, canSetOfficialVersion: canSetOfficial } = usePermission()
+
+const canDeleteCurrentDoc = computed(() => {
+  if (!doc.value || !authStore.user) return false
+  return authStore.isAdmin || doc.value.owner_id === authStore.user.id
+})
 
 const loading = ref(true)
 const doc = ref<DocumentItem | null>(null)
@@ -225,6 +247,30 @@ const uploadingVersion = ref(false)
 const extracting = ref(false)
 const similarDocs = ref<any[]>([])
 const extractedText = ref<string | null>(null)
+
+// AI features
+const summarizing = ref(false)
+const showSummary = ref(false)
+const aiSummary = ref('')
+const router = useRouter()
+
+async function handleAISummarize() {
+  summarizing.value = true
+  try {
+    const id = Number(route.params.id)
+    const result = await aiApi.summarize(id)
+    aiSummary.value = result.summary
+    showSummary.value = true
+  } catch {
+    ElMessage.error('AI 摘要生成失败')
+  } finally {
+    summarizing.value = false
+  }
+}
+
+function handleAIAsk() {
+  router.push(`/ai/chat?document_id=${route.params.id}`)
+}
 
 async function loadData() {
   loading.value = true
@@ -298,6 +344,21 @@ async function handleLockAndDownload() {
     ElMessage.success('文档已锁定，请下载后编辑')
   } catch {
     // error handled by interceptor
+  }
+}
+
+async function handleDeleteDocument() {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除文档「${doc.value?.original_name}」？删除后将无法恢复。`,
+      '确认删除',
+      { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' }
+    )
+    await documentsApi.delete(Number(route.params.id))
+    ElMessage.success('文档已删除')
+    router.push('/documents')
+  } catch {
+    // cancelled or error handled by interceptor
   }
 }
 

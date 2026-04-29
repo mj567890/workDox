@@ -1,6 +1,7 @@
 from sqlalchemy import String, Boolean, Integer, DateTime, Text, ForeignKey, UniqueConstraint, Index, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship, foreign
 from datetime import datetime
+from pgvector.sqlalchemy import Vector
 
 from app.models.base import Base, TimestampMixin
 
@@ -59,6 +60,7 @@ class Document(Base, TimestampMixin):
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     preview_pdf_path: Mapped[str | None] = mapped_column(String(500))
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    embedding = mapped_column(Vector(768), nullable=True)
 
     owner = relationship("User")
     matter = relationship("Matter", back_populates="documents")
@@ -73,6 +75,7 @@ class Document(Base, TimestampMixin):
     edit_lock = relationship("DocumentEditLock", back_populates="document", uselist=False)
     reviews: Mapped[list["DocumentReview"]] = relationship("DocumentReview", back_populates="document", order_by="DocumentReview.review_level")
     cross_references: Mapped[list["CrossMatterReference"]] = relationship("CrossMatterReference", back_populates="document")
+    chunks: Mapped[list["DocumentChunk"]] = relationship("DocumentChunk", back_populates="document", order_by="DocumentChunk.chunk_index")
 
     __table_args__ = (
         Index("idx_document_search",

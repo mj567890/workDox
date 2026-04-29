@@ -242,6 +242,45 @@ async def extract_and_store_text(
     return extracted
 
 
+# ---------- Vector-based similar document search ----------
+
+async def find_similar_by_vector(
+    db: AsyncSession, doc_id: int, limit: int = 10,
+) -> list[dict]:
+    """Find similar documents using pgvector cosine distance."""
+    result = await db.execute(
+        text("SELECT embedding FROM document WHERE id = :did AND is_deleted = false"),
+        {"did": doc_id},
+    )
+    row = result.scalar_one_or_none()
+    if not row:
+        return []
+
+    sql = text("""
+        SELECT d.id, d.original_name, d.file_type, d.description, d.status,
+               1 - (d.embedding <=> :embedding) AS similarity
+        FROM document d
+        WHERE d.id != :doc_id
+          AND d.is_deleted = false
+          AND d.embedding IS NOT NULL
+        ORDER BY d.embedding <=> :embedding
+        LIMIT :limit
+    """)
+    result = await db.execute(sql, {"embedding": row, "doc_id": doc_id, "limit": limit})
+    return [
+        {
+            "document_id": r[0],
+            "original_name": r[1],
+            "file_type": r[2],
+            "description": r[3],
+            "status": r[4],
+            "similarity_score": round(float(r[5]), 4),
+            "headline": None,
+        }
+        for r in result.all()
+    ]
+
+
 # ---------- Document relation graph data ----------
 
 async def get_document_graph_data(
@@ -256,7 +295,7 @@ async def get_document_graph_data(
     # Get source document
     doc_result = await db.execute(
         select(Document)
-        .options(selectinload(Document.matter))
+        .options(selectinload(Document.matter), selectinload(Document.tags))
         .where(Document.id == doc_id, Document.is_deleted == False)
     )
     source = doc_result.scalars().first()

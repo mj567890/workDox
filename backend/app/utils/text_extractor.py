@@ -1,8 +1,19 @@
-"""Text extraction from common document formats: docx, xlsx, pdf, txt."""
+"""Text extraction from common document formats.
+
+Supported formats:
+  - Binary structured: docx, pdf, xlsx, xls, pptx
+  - Plain text (UTF-8/GBK/GB2312/Latin-1): txt, md, csv, json, xml,
+    html, htm, log, yaml, yml, toml, cfg, ini, conf, properties, env,
+    rst, tex, py, js, ts, tsx, jsx, vue, css, scss, less, sass,
+    sql, sh, bash, zsh, bat, cmd, ps1, java, go, rs, c, cpp, cxx,
+    h, hpp, hxx, rb, php, swift, kt, scala, r, m, mm, pl, pm, lua,
+    dockerfile, makefile, gradle, cmake, gitignore, editorconfig
+"""
 
 import io
 import traceback
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +48,64 @@ def _get_openpyxl():
         return None
 
 
+def _get_pptx():
+    try:
+        from pptx import Presentation
+        return Presentation
+    except ImportError as e:
+        _import_errors["pptx"] = str(e)
+        return None
+
+
 MAX_EXTRACT_CHARS = 50000  # Soft cap to avoid storing huge texts
+
+# ── Plain-text file types (use _extract_txt with encoding detection) ──────
+TEXT_BASED_TYPES: frozenset[str] = frozenset({
+    "txt", "md", "markdown", "rst", "tex",
+    "csv", "tsv",
+    "json", "jsonc", "jsonl",
+    "xml", "svg",
+    "html", "htm", "xhtml",
+    "yaml", "yml",
+    "toml", "cfg", "ini", "conf", "config", "properties", "env",
+    "log", "text",
+    "py", "js", "ts", "tsx", "jsx", "mjs", "cjs",
+    "vue", "svelte",
+    "css", "scss", "sass", "less",
+    "sql", "psql", "mysql",
+    "sh", "bash", "zsh", "fish", "bat", "cmd", "ps1",
+    "java", "kt", "kts", "scala", "groovy",
+    "go", "rs", "c", "cpp", "cxx", "cc", "h", "hpp", "hxx",
+    "rb", "php", "swift", "r", "m", "mm",
+    "pl", "pm", "lua", "dart", "elm", "erl", "ex", "exs", "hs", "clj", "cljs",
+    "dockerfile", "makefile", "cmake", "gradle",
+    "gitignore", "gitattributes", "editorconfig",
+    "nginx", "apache",
+})
+
+# ── Binary structured types (have dedicated extractors) ────────────────────
+BINARY_STRUCTURED_TYPES: frozenset[str] = frozenset({
+    "docx", "pdf", "xlsx", "xls", "pptx",
+})
+
+# All currently supported extractable types
+SUPPORTED_TYPES: frozenset[str] = TEXT_BASED_TYPES | BINARY_STRUCTURED_TYPES
+
+
+def is_supported(file_type: str) -> bool:
+    """Check whether `file_type` has a text extractor."""
+    return file_type.lower() in SUPPORTED_TYPES
+
+
+def _normalize_ext(file_type: str) -> str:
+    """Normalize a file-type string to a canonical extension."""
+    ft = file_type.lower().strip().lstrip(".")
+    # Handle compound extensions like .tar.gz
+    if ft.endswith(".gz"):
+        ft = ft[:-3]
+    if ft.endswith(".tar"):
+        ft = ft[:-4]
+    return ft
 
 
 def extract_text(file_data: bytes, file_type: str, original_name: str = "") -> str | None:
@@ -45,31 +113,48 @@ def extract_text(file_data: bytes, file_type: str, original_name: str = "") -> s
 
     Returns extracted text string, or None if extraction fails or is unsupported.
     """
-    file_type = file_type.lower()
+    ft = _normalize_ext(file_type)
+
+    if not ft:
+        return None
 
     try:
-        if file_type == "txt":
-            return _extract_txt(file_data)
-
-        if file_type == "docx":
+        # ── Binary structured formats ──────────────────────────────
+        if ft == "docx":
             return _extract_docx(file_data)
 
-        if file_type == "pdf":
+        if ft == "pdf":
             return _extract_pdf(file_data)
 
-        if file_type in ("xlsx", "xls"):
+        if ft in ("xlsx", "xls"):
             return _extract_xlsx(file_data)
 
-        logger.debug(f"No text extractor for file type: {file_type}")
+        if ft == "pptx":
+            return _extract_pptx(file_data)
+
+        # ── Plain-text formats (encoding auto-detect) ──────────────
+        if ft in TEXT_BASED_TYPES:
+            return _extract_txt(file_data)
+
+        # ── Unsupported ────────────────────────────────────────────
+        logger.debug(f"No text extractor for file type: {ft}")
         return None
+
     except Exception:
-        logger.warning(f"Text extraction failed for {original_name} ({file_type}):\n{traceback.format_exc()}")
+        logger.warning(
+            f"Text extraction failed for {original_name} ({ft}):\n{traceback.format_exc()}"
+        )
         return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Individual extractors
+# ═══════════════════════════════════════════════════════════════════════════════
 
 
 def _extract_txt(data: bytes) -> str:
-    """Extract text from plain text files."""
-    for encoding in ("utf-8", "gbk", "gb2312", "latin-1"):
+    """Extract text from plain text files with encoding auto-detection."""
+    for encoding in ("utf-8", "gbk", "gb2312", "gb18030", "latin-1"):
         try:
             text = data.decode(encoding)
             return text[:MAX_EXTRACT_CHARS]
@@ -103,8 +188,8 @@ def _extract_docx(data: bytes) -> str | None:
 
 
 def _extract_pdf(data: bytes) -> str | None:
-    """Extract text from PDF files using pdfplumber, fallback to pdfminer."""
-    # Try pdfplumber first (better quality)
+    """Extract text from PDF files using pdfplumber, fallback to pdfminer, then pypdfium2."""
+    # Try pdfplumber first (best quality)
     pdfplumber_mod = _get_pdf_plumber()
     if pdfplumber_mod is not None:
         try:
@@ -118,7 +203,7 @@ def _extract_pdf(data: bytes) -> str | None:
             if text.strip():
                 return text[:MAX_EXTRACT_CHARS]
         except Exception:
-            logger.debug(f"pdfplumber extraction failed, trying pdfminer fallback")
+            logger.debug("pdfplumber extraction failed, trying pdfminer fallback")
 
     # Fallback to pdfminer.six
     try:
@@ -168,4 +253,35 @@ def _extract_xlsx(data: bytes) -> str | None:
 
     wb.close()
     text = "\n\n".join(all_text)
+    return text[:MAX_EXTRACT_CHARS] if text.strip() else None
+
+
+def _extract_pptx(data: bytes) -> str | None:
+    """Extract text from .pptx PowerPoint presentations."""
+    Presentation = _get_pptx()
+    if Presentation is None:
+        logger.warning("python-pptx not installed, skipping pptx extraction")
+        return None
+
+    prs = Presentation(io.BytesIO(data))
+    slides_text = []
+
+    for slide_num, slide in enumerate(prs.slides, start=1):
+        slide_parts = [f"[Slide {slide_num}]"]
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                for paragraph in shape.text_frame.paragraphs:
+                    para_text = paragraph.text.strip()
+                    if para_text:
+                        slide_parts.append(para_text)
+            if shape.has_table:
+                table = shape.table
+                for row in table.rows:
+                    row_text = " | ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
+                    if row_text:
+                        slide_parts.append(row_text)
+        if len(slide_parts) > 1:  # Has more than just the slide header
+            slides_text.append("\n".join(slide_parts))
+
+    text = "\n\n".join(slides_text)
     return text[:MAX_EXTRACT_CHARS] if text.strip() else None

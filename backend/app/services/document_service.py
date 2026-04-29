@@ -194,8 +194,9 @@ class DocumentService:
     ) -> bool:
         document = await self.get_document(db, doc_id, current_user)
 
-        if document.owner_id != current_user.get("id") and "admin" not in current_user.get("roles", []):
-            raise ForbiddenException(detail="Only the document owner or admin can delete this document")
+        roles = current_user.get("roles", [])
+        if document.owner_id != current_user.get("id") and "admin" not in roles and "dept_leader" not in roles:
+            raise ForbiddenException(detail="Only the document owner, admin, or department leader can delete this document")
 
         document.is_deleted = True
         await db.commit()
@@ -424,7 +425,7 @@ class DocumentVersionService:
         max_version = max_version_result.scalar() or 0
         new_version_no = max_version + 1
 
-        if set_as_oficial:
+        if set_as_official:
             await db.execute(
                 update(DocumentVersion)
                 .where(DocumentVersion.document_id == doc_id)
@@ -444,7 +445,7 @@ class DocumentVersionService:
         db.add(version)
         await db.flush()
 
-        if set_as_oficial:
+        if set_as_official:
             document.current_version_id = version.id
             document.status = "official"
             document.storage_path = file_info["storage_path"]
