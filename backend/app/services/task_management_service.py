@@ -4,9 +4,9 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.task import (
+from app.models.task_manager import (
     TaskTemplate, StageTemplate, SlotTemplate,
-    Task, Stage, Slot, SlotVersion,
+    ProjectTask, ProjectStage, ProjectSlot, SlotVersion,
 )
 from app.core.exceptions import NotFoundException, ValidationException
 
@@ -203,28 +203,28 @@ class TaskTemplateService:
 
 class TaskInstanceService:
 
-    async def list_tasks(self, db: AsyncSession, status: str | None = None) -> list[Task]:
-        stmt = select(Task).options(
-            selectinload(Task.template),
-            selectinload(Task.stages).selectinload(Stage.slots),
-        ).order_by(Task.id.desc())
+    async def list_tasks(self, db: AsyncSession, status: str | None = None) -> list[ProjectTask]:
+        stmt = select(ProjectTask).options(
+            selectinload(ProjectTask.template),
+            selectinload(ProjectTask.stages).selectinload(ProjectStage.slots),
+        ).order_by(ProjectTask.id.desc())
         if status:
-            stmt = stmt.where(Task.status == status)
+            stmt = stmt.where(ProjectTask.status == status)
         result = await db.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_task(self, db: AsyncSession, task_id: int) -> Task:
-        stmt = select(Task).options(
-            selectinload(Task.template),
-            selectinload(Task.stages).selectinload(Stage.slots).selectinload(Slot.document),
-        ).where(Task.id == task_id)
+    async def get_task(self, db: AsyncSession, task_id: int) -> ProjectTask:
+        stmt = select(ProjectTask).options(
+            selectinload(ProjectTask.template),
+            selectinload(ProjectTask.stages).selectinload(ProjectStage.slots).selectinload(ProjectSlot.document),
+        ).where(ProjectTask.id == task_id)
         result = await db.execute(stmt)
         task = result.scalars().first()
         if not task:
-            raise NotFoundException(resource="Task")
+            raise NotFoundException(resource="ProjectTask")
         return task
 
-    async def create_task(self, db: AsyncSession, data: dict, creator_id: int) -> Task:
+    async def create_task(self, db: AsyncSession, data: dict, creator_id: int) -> ProjectTask:
         template = await db.execute(
             select(TaskTemplate).options(
                 selectinload(TaskTemplate.stages).selectinload(StageTemplate.slots)
@@ -234,7 +234,7 @@ class TaskInstanceService:
         if not template:
             raise NotFoundException(resource="TaskTemplate")
 
-        task = Task(
+        task = ProjectTask(
             template_id=template.id,
             matter_id=data.get("matter_id"),
             title=data.get("title", template.name),
@@ -246,7 +246,7 @@ class TaskInstanceService:
         await db.flush()
 
         for st in template.stages:
-            stage = Stage(
+            stage = ProjectStage(
                 task_id=task.id,
                 stage_template_id=st.id,
                 order=st.order,
@@ -257,7 +257,7 @@ class TaskInstanceService:
             await db.flush()
 
             for sl in st.slots:
-                slot = Slot(
+                slot = ProjectSlot(
                     stage_id=stage.id,
                     slot_template_id=sl.id,
                     name=sl.name,
@@ -271,7 +271,7 @@ class TaskInstanceService:
         await db.refresh(task)
         return await self.get_task(db, task.id)
 
-    async def update_task(self, db: AsyncSession, task_id: int, data: dict) -> Task:
+    async def update_task(self, db: AsyncSession, task_id: int, data: dict) -> ProjectTask:
         task = await self.get_task(db, task_id)
         for key in ("title", "status", "matter_id"):
             if key in data:
@@ -285,7 +285,7 @@ class TaskInstanceService:
         await db.delete(task)
         await db.commit()
 
-    async def advance_stage(self, db: AsyncSession, task_id: int) -> Task:
+    async def advance_stage(self, db: AsyncSession, task_id: int) -> ProjectTask:
         task = await self.get_task(db, task_id)
         current_stage = next((s for s in task.stages if s.order == task.current_stage_order), None)
         if not current_stage:
@@ -327,15 +327,15 @@ class TaskInstanceService:
         self, db: AsyncSession, task_id: int, stage_id: int, slot_id: int,
         document_id: int, maturity: str = "draft", maturity_note: str | None = None,
         user_id: int | None = None,
-    ) -> Slot:
+    ) -> ProjectSlot:
         task = await self.get_task(db, task_id)
         stage = next((s for s in task.stages if s.id == stage_id), None)
         if not stage:
-            raise NotFoundException(resource="Stage")
+            raise NotFoundException(resource="ProjectStage")
 
         slot = next((s for s in stage.slots if s.id == slot_id), None)
         if not slot:
-            raise NotFoundException(resource="Slot")
+            raise NotFoundException(resource="ProjectSlot")
 
         if slot.document_id and slot.document_id != document_id:
             SlotVersion(
@@ -369,21 +369,21 @@ class TaskInstanceService:
         self, db: AsyncSession, task_id: int, stage_id: int, slot_id: int,
         document_id: int, maturity: str = "draft", maturity_note: str | None = None,
         user_id: int | None = None,
-    ) -> Slot:
+    ) -> ProjectSlot:
         return await self.upload_to_slot(
             db, task_id, stage_id, slot_id, document_id, maturity, maturity_note, user_id
         )
 
     async def remove_slot_document(
         self, db: AsyncSession, task_id: int, stage_id: int, slot_id: int
-    ) -> Slot:
+    ) -> ProjectSlot:
         task = await self.get_task(db, task_id)
         stage = next((s for s in task.stages if s.id == stage_id), None)
         if not stage:
-            raise NotFoundException(resource="Stage")
+            raise NotFoundException(resource="ProjectStage")
         slot = next((s for s in stage.slots if s.id == slot_id), None)
         if not slot:
-            raise NotFoundException(resource="Slot")
+            raise NotFoundException(resource="ProjectSlot")
 
         slot.document_id = None
         slot.status = "pending"
@@ -396,14 +396,14 @@ class TaskInstanceService:
     async def update_slot_maturity(
         self, db: AsyncSession, task_id: int, stage_id: int, slot_id: int,
         maturity: str, maturity_note: str | None = None,
-    ) -> Slot:
+    ) -> ProjectSlot:
         task = await self.get_task(db, task_id)
         stage = next((s for s in task.stages if s.id == stage_id), None)
         if not stage:
-            raise NotFoundException(resource="Stage")
+            raise NotFoundException(resource="ProjectStage")
         slot = next((s for s in stage.slots if s.id == slot_id), None)
         if not slot:
-            raise NotFoundException(resource="Slot")
+            raise NotFoundException(resource="ProjectSlot")
 
         slot.maturity = maturity
         slot.maturity_note = maturity_note
@@ -413,14 +413,14 @@ class TaskInstanceService:
 
     async def waive_slot(
         self, db: AsyncSession, task_id: int, stage_id: int, slot_id: int, reason: str,
-    ) -> Slot:
+    ) -> ProjectSlot:
         task = await self.get_task(db, task_id)
         stage = next((s for s in task.stages if s.id == stage_id), None)
         if not stage:
-            raise NotFoundException(resource="Stage")
+            raise NotFoundException(resource="ProjectStage")
         slot = next((s for s in stage.slots if s.id == slot_id), None)
         if not slot:
-            raise NotFoundException(resource="Slot")
+            raise NotFoundException(resource="ProjectSlot")
 
         slot.status = "waived"
         slot.waive_reason = reason
@@ -430,14 +430,14 @@ class TaskInstanceService:
 
     async def unwaive_slot(
         self, db: AsyncSession, task_id: int, stage_id: int, slot_id: int,
-    ) -> Slot:
+    ) -> ProjectSlot:
         task = await self.get_task(db, task_id)
         stage = next((s for s in task.stages if s.id == stage_id), None)
         if not stage:
-            raise NotFoundException(resource="Stage")
+            raise NotFoundException(resource="ProjectStage")
         slot = next((s for s in stage.slots if s.id == slot_id), None)
         if not slot:
-            raise NotFoundException(resource="Slot")
+            raise NotFoundException(resource="ProjectSlot")
 
         slot.status = "pending" if not slot.document_id else "filled"
         slot.waive_reason = None

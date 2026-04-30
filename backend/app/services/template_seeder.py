@@ -242,7 +242,7 @@ PRESET_TEMPLATES = [
 
 async def seed_templates(db) -> int:
     """Seed preset templates if none exist. Returns count of created templates."""
-    from app.models.task import TaskTemplate
+    from app.models.task_manager import TaskTemplate
     result = await db.execute(select(func.count(TaskTemplate.id)))
     count = result.scalar() or 0
     if count > 0:
