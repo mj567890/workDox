@@ -24,6 +24,13 @@ export const useAuthStore = defineStore('auth', () => {
     await fetchUser()
   }
 
+  async function ldapLogin(username: string, password: string) {
+    const res = await authApi.ldapLogin({ username, password })
+    token.value = res.access_token
+    localStorage.setItem('token', res.access_token)
+    await fetchUser()
+  }
+
   async function fetchUser() {
     try {
       user.value = await authApi.getMe()
@@ -49,6 +56,7 @@ export const useAuthStore = defineStore('auth', () => {
     isMatterOwner,
     hasRole,
     login,
+    ldapLogin,
     fetchUser,
     logout,
   }

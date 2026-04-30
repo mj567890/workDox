@@ -34,6 +34,31 @@ class Settings(BaseSettings):
     RAG_CHUNK_SIZE: int = 500
     RAG_CHUNK_OVERLAP: int = 50
 
+    # ── LDAP ──────────────────────────────────────────────────
+    LDAP_ENABLED: bool = False
+    LDAP_SERVER: str = "ldap://ad.company.com"
+    LDAP_BASE_DN: str = "dc=company,dc=com"
+    LDAP_USER_DN_TEMPLATE: str = "cn={username},ou=users,dc=company,dc=com"
+    LDAP_ATTR_REAL_NAME: str = "displayName"
+    LDAP_ATTR_EMAIL: str = "mail"
+    LDAP_ATTR_PHONE: str = "telephoneNumber"
+
+    # ── OAuth2 / OIDC ─────────────────────────────────────────
+    OAUTH2_ENABLED: bool = False
+    OAUTH2_CLIENT_ID: str = ""
+    OAUTH2_CLIENT_SECRET: str = ""
+    OAUTH2_ISSUER: str = ""
+    OAUTH2_AUTHORIZE_URL: str = ""
+    OAUTH2_TOKEN_URL: str = ""
+    OAUTH2_USERINFO_URL: str = ""
+    OAUTH2_SCOPES: str = "openid profile email"
+    OAUTH2_PROVIDER_NAME: str = "OIDC"
+    OAUTH2_REDIRECT_URI: str = ""
+    OAUTH2_USER_ID_CLAIM: str = "sub"
+    OAUTH2_USERNAME_CLAIM: str = "preferred_username"
+    OAUTH2_NAME_CLAIM: str = "name"
+    OAUTH2_EMAIL_CLAIM: str = "email"
+
     # ── SMTP / Email ─────────────────────────────────────────────
     SMTP_HOST: str = "smtp.126.com"
     SMTP_PORT: int = 25

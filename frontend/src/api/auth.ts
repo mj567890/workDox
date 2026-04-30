@@ -22,8 +22,15 @@ export interface UserInfo {
   avatar_url: string | null
 }
 
+export interface ProvidersResponse {
+  providers: (string | { name: string; type: string })[]
+}
+
 export const authApi = {
   login: (data: LoginRequest) => post<TokenResponse>('/auth/login', data),
+  ldapLogin: (data: LoginRequest) => post<TokenResponse>('/auth/ldap/login', data),
   logout: () => post('/auth/logout'),
   getMe: () => get<UserInfo>('/auth/me'),
+  getProviders: () => get<ProvidersResponse>('/auth/providers'),
+  getOAuth2AuthorizeUrl: () => '/api/v1/auth/oauth2/authorize',
 }

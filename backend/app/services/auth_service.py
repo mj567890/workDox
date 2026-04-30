@@ -23,7 +23,11 @@ class AuthService:
         result = await db.execute(stmt)
         user = result.scalars().first()
 
-        if not user or not verify_password(password, user.password_hash):
+        if not user:
+            raise UnauthorizedException(detail="Invalid username or password")
+        if user.auth_provider != "local":
+            raise UnauthorizedException(detail=f"This account uses {user.auth_provider} authentication. Please use the appropriate login method.")
+        if not verify_password(password, user.password_hash):
             raise UnauthorizedException(detail="Invalid username or password")
 
         roles = [

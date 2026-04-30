@@ -10,6 +10,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false },
   },
   {
+    path: '/auth/oauth2/callback',
+    name: 'OAuth2Callback',
+    component: () => import('@/views/auth/OAuth2CallbackView.vue'),
+    meta: { requiresAuth: false },
+  },
+  {
     path: '/dashboard',
     name: 'PublicDashboard',
     component: () => import('@/views/dashboard/PublicDashboardView.vue'),
