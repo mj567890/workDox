@@ -15,7 +15,7 @@ import sqlalchemy as sa
 
 
 revision: str = 'add_auth_provider_2026'
-down_revision: Union[str, None] = 'enable_pgvector_2026'
+down_revision: Union[str, None] = 'add_preview_html_path_2026'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
