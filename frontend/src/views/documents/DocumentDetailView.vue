@@ -26,8 +26,26 @@
 
       <el-row :gutter="20">
         <el-col :span="16">
-          <el-card header="文档信息" shadow="never">
-            <el-descriptions :column="2" border>
+          <el-card shadow="never">
+            <template #header>
+              <div class="card-header">
+                <span>文档信息</span>
+                <div v-if="canEdit">
+                  <template v-if="!editMode">
+                    <el-button type="primary" size="small" @click="startEdit">
+                      <el-icon><Edit /></el-icon>编辑
+                    </el-button>
+                  </template>
+                  <template v-else>
+                    <el-button type="primary" size="small" :loading="savingEdit" @click="saveEdit">保存</el-button>
+                    <el-button size="small" @click="cancelEdit">取消</el-button>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <!-- Read-only view -->
+            <el-descriptions v-if="!editMode" :column="2" border>
               <el-descriptions-item label="文件名">{{ doc.original_name }}</el-descriptions-item>
               <el-descriptions-item label="文件类型">
                 <FileTypeIcon :file-type="doc.file_type" :size="20" />
@@ -41,14 +59,41 @@
               <el-descriptions-item label="上传者">{{ doc.owner_name }}</el-descriptions-item>
               <el-descriptions-item label="所属事项">{{ doc.matter_title || '-' }}</el-descriptions-item>
               <el-descriptions-item label="文档分类">{{ doc.category_name || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="共享范围">{{ doc.permission_scope === 'matter' ? '事项内共享' : doc.permission_scope }}</el-descriptions-item>
+              <el-descriptions-item label="共享范围">{{ doc.permission_scope === 'matter' ? '事项内共享' : '全局可见' }}</el-descriptions-item>
               <el-descriptions-item label="标签">
                 <el-tag v-for="tag in doc.tags" :key="tag.id" size="small" :color="tag.color" effect="light" class="mr-4">
                   {{ tag.name }}
                 </el-tag>
+                <span v-if="!doc.tags || doc.tags.length === 0" class="text-gray">-</span>
               </el-descriptions-item>
               <el-descriptions-item label="描述" :span="2">{{ doc.description || '-' }}</el-descriptions-item>
             </el-descriptions>
+
+            <!-- Edit form -->
+            <el-form v-else :model="editForm" label-width="80px" label-position="left">
+              <el-form-item label="文件名">
+                <el-input v-model="editForm.original_name" />
+              </el-form-item>
+              <el-form-item label="文档分类">
+                <el-select v-model="editForm.category_id" placeholder="选择分类" clearable style="width:100%">
+                  <el-option v-for="c in docStore.categories" :key="c.id" :label="c.name" :value="c.id" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="共享范围">
+                <el-select v-model="editForm.permission_scope" style="width:100%">
+                  <el-option label="事项内共享" value="matter" />
+                  <el-option label="全局可见" value="global" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="标签">
+                <el-select v-model="editForm.tag_ids" multiple filterable placeholder="选择标签" style="width:100%">
+                  <el-option v-for="t in docStore.tags" :key="t.id" :label="t.name" :value="t.id" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="描述">
+                <el-input v-model="editForm.description" type="textarea" :rows="3" placeholder="文档描述" />
+              </el-form-item>
+            </el-form>
           </el-card>
 
           <el-card header="版本历史" shadow="never" class="mt-20">
@@ -90,15 +135,21 @@
         <el-col :span="8">
           <el-card header="预览" shadow="never">
             <div class="preview-area" v-if="previewStatus === 'ready'">
-              <iframe :src="previewUrl" width="100%" height="400" frameborder="0" />
-            </div>
-            <div class="preview-area" v-else-if="previewStatus === 'processing'">
-              <el-skeleton :rows="5" animated />
-              <p class="text-center">文档转换中，请稍候...</p>
+              <iframe v-if="previewFormat === 'html'" :srcdoc="previewContent" class="preview-iframe" sandbox="allow-same-origin" />
+              <div v-else-if="previewFormat === 'markdown'" v-html="previewHtml" class="preview-content markdown-body"></div>
+              <pre v-else class="preview-content preview-text">{{ previewContent }}</pre>
+              <div v-if="previewFormat !== 'html' && canGenerateHtml" class="mt-10 text-center">
+                <el-button size="small" type="warning" :loading="generatingPreview" @click="handleGeneratePreview">
+                  生成 HTML 预览（保留排版）
+                </el-button>
+              </div>
             </div>
             <div class="preview-area" v-else-if="previewStatus === 'unsupported'">
-              <p class="text-center text-gray">此文件类型暂不支持预览</p>
+              <p class="text-center text-gray">{{ previewDetail || '此文件类型暂不支持预览' }}</p>
               <el-button type="primary" @click="handleDownload" style="width:100%">下载查看</el-button>
+            </div>
+            <div class="preview-area" v-else-if="previewStatus === 'loading'">
+              <el-skeleton :rows="8" animated />
             </div>
             <div class="preview-area" v-else>
               <el-button type="primary" @click="loadPreview" style="width:100%">加载预览</el-button>
@@ -205,7 +256,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { Lock, UploadFilled, Delete } from '@element-plus/icons-vue'
+import { Lock, UploadFilled, Delete, Edit } from '@element-plus/icons-vue'
 import { useDocumentStore } from '@/stores/documents'
 import { useAuthStore } from '@/stores/auth'
 import { usePermission } from '@/composables/usePermission'
@@ -230,13 +281,114 @@ const canDeleteCurrentDoc = computed(() => {
   return authStore.isAdmin || doc.value.owner_id === authStore.user.id
 })
 
+// Edit mode
+const editMode = ref(false)
+const savingEdit = ref(false)
+const editForm = ref({
+  original_name: '',
+  category_id: null as number | null,
+  permission_scope: 'matter',
+  tag_ids: [] as number[],
+  description: '',
+})
+
+function startEdit() {
+  if (!doc.value) return
+  editForm.value = {
+    original_name: doc.value.original_name,
+    category_id: doc.value.category_id,
+    permission_scope: doc.value.permission_scope || 'matter',
+    tag_ids: (doc.value.tags || []).map(t => t.id),
+    description: doc.value.description || '',
+  }
+  // Ensure categories & tags are loaded
+  if (docStore.categories.length === 0) docStore.fetchCategories()
+  if (docStore.tags.length === 0) docStore.fetchTags()
+  editMode.value = true
+}
+
+function cancelEdit() {
+  editMode.value = false
+}
+
+async function saveEdit() {
+  savingEdit.value = true
+  try {
+    const id = Number(route.params.id)
+    await documentsApi.update(id, {
+      original_name: editForm.value.original_name,
+      category_id: editForm.value.category_id,
+      permission_scope: editForm.value.permission_scope,
+      tag_ids: editForm.value.tag_ids,
+      description: editForm.value.description,
+    })
+    editMode.value = false
+    ElMessage.success('文档信息已更新')
+    await loadData()
+  } catch {
+    ElMessage.error('保存失败')
+  } finally {
+    savingEdit.value = false
+  }
+}
+
 const loading = ref(true)
 const doc = ref<DocumentItem | null>(null)
 const versions = ref<DocumentVersion[]>([])
 const reviews = ref<DocumentReview[]>([])
 const lockStatus = ref<LockStatus | null>(null)
 const previewStatus = ref('')
-const previewUrl = ref('')
+const previewContent = ref('')
+const previewFormat = ref('text')
+const previewHtml = ref('')
+const previewDetail = ref('')
+const canGenerateHtml = ref(false)
+
+function renderMarkdown(text: string): string {
+  // Minimal markdown renderer: headers, bold, italic, code, links, lists, tables
+  let html = text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  // Tables — must run before other block-level transforms
+  html = html.replace(/(?:^\|.+\|\s*$\n?)+/gm, (tableBlock) => {
+    const lines = tableBlock.trim().split('\n').filter(l => l.includes('|'))
+    if (lines.length < 2) return tableBlock
+    // Skip separator line like |---|---|
+    const dataLines = lines.filter(l => !/^\|[\s\-:]+\|[\s\-\|:]+$/.test(l))
+    if (dataLines.length === 0) return tableBlock
+    const header = dataLines[0]
+    const cells = (line: string) => line.split('|').slice(1, -1).map(c => c.trim())
+    const th = cells(header).map(c => `<th>${c}</th>`).join('')
+    const thead = `<thead><tr>${th}</tr></thead>`
+    const tbody = dataLines.length > 1
+      ? `<tbody>${dataLines.slice(1).map(r => `<tr>${cells(r).map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>`
+      : ''
+    return `<table>${thead}${tbody}</table>`
+  })
+
+  // Headers
+  html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>')
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>')
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>')
+  // Bold / italic
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
+  // Inline code
+  html = html.replace(/`(.+?)`/g, '<code>$1</code>')
+  // Links
+  html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank">$1</a>')
+  // Unordered lists
+  html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>')
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+  // Line breaks
+  html = html.replace(/^(?!<[hu]|<li|<t[a<h]|<t[b])(.+)$/gm, '<p>$1</p>')
+  html = html.replace(/<p><\/p>/g, '')
+  // Cleanup: merge adjacent <p> separated only by newlines
+  html = html.replace(/\n\n/g, '<br/>')
+  return html
+}
 const showVersionUpload = ref(false)
 const newVersionFile = ref<File | null>(null)
 const changeNote = ref('')
@@ -247,6 +399,22 @@ const uploadingVersion = ref(false)
 const extracting = ref(false)
 const similarDocs = ref<any[]>([])
 const extractedText = ref<string | null>(null)
+
+// HTML preview generation
+const generatingPreview = ref(false)
+
+async function handleGeneratePreview() {
+  generatingPreview.value = true
+  try {
+    const id = Number(route.params.id)
+    await documentsApi.generatePreview(id)
+    ElMessage.success('HTML 预览生成已启动，请等待 10-30 秒后刷新查看')
+  } catch {
+    ElMessage.error('启动预览生成失败')
+  } finally {
+    generatingPreview.value = false
+  }
+}
 
 // AI features
 const summarizing = ref(false)
@@ -320,10 +488,22 @@ async function loadSimilarDocs(docId: number) {
 
 async function loadPreview() {
   const id = Number(route.params.id)
+  previewStatus.value = 'loading'
   try {
-    const res = await documentsApi.getPreview(id)
-    previewStatus.value = res.status
-    if (res.url) previewUrl.value = res.url
+    const res = await documentsApi.getPreviewText(id)
+    if (res.has_content && res.content) {
+      previewContent.value = res.content
+      previewFormat.value = res.format
+      canGenerateHtml.value = !!res.can_generate_html
+      if (res.format === 'markdown') {
+        previewHtml.value = renderMarkdown(res.content)
+      }
+      previewStatus.value = 'ready'
+    } else {
+      previewDetail.value = res.detail || '此文件类型暂不支持预览'
+      canGenerateHtml.value = !!res.can_generate_html
+      previewStatus.value = 'unsupported'
+    }
   } catch {
     previewStatus.value = 'unsupported'
   }
@@ -420,6 +600,11 @@ onMounted(loadData)
 .mr-4 { margin-right: 4px; }
 .text-center { text-align: center; }
 .text-gray { color: #999; }
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 .version-header {
   display: flex;
   gap: 8px;
@@ -459,4 +644,38 @@ onMounted(loadData)
 .preview-area {
   min-height: 200px;
 }
+.preview-content {
+  max-height: 450px;
+  overflow: auto;
+}
+.preview-iframe {
+  width: 100%;
+  height: 500px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+}
+.preview-text {
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #303133;
+  margin: 0;
+  padding: 8px 0;
+}
+.markdown-body {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #303133;
+}
+.markdown-body h1 { font-size: 1.4em; border-bottom: 1px solid #eee; padding-bottom: 6px; margin: 12px 0 8px; }
+.markdown-body h2 { font-size: 1.2em; margin: 10px 0 6px; }
+.markdown-body h3 { font-size: 1.05em; margin: 8px 0 4px; }
+.markdown-body h4 { font-size: 1em; margin: 6px 0 4px; }
+.markdown-body p { margin: 4px 0; }
+.markdown-body ul { padding-left: 20px; margin: 4px 0; }
+.markdown-body li { margin: 2px 0; }
+.markdown-body code { background: #f5f5f5; padding: 1px 4px; border-radius: 3px; font-size: 0.9em; }
+.markdown-body strong { font-weight: 600; }
+.markdown-body a { color: #409EFF; }
 </style>
