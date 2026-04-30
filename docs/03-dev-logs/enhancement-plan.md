@@ -1,6 +1,6 @@
 # ODMS 拓展设计方案：从可用到卓越
 
-> **最后更新**: 2026-04-29
+> **最后更新**: 2026-04-30
 
 ## 背景
 
@@ -16,13 +16,13 @@
 |------|------|--------|
 | Tier 1 立刻见效 | **已完成** | 8/8 |
 | Tier 2 核心升级 | **已完成** | 8/8 |
-| Tier 3 远景蓝图 | **进行中** | 5/7 |
+| Tier 3 远景蓝图 | **已完成** | 7/7 |
 
-已完成: 21 项。16 个薄弱点已解决 15 个，仅剩"无智能处理"中的 3.5 AI 文档助手 (RAG) 部分（需 pgvector + sentence-transformers + LLM API）。
+已完成: 23 项。16 个薄弱点已全部解决。
 
 ---
 
-## 当前系统薄弱点（16 项 → 已解决 15 项）
+## 当前系统薄弱点（16 项 → 已全部解决）
 
 1. ~~**无实时推送**~~ ✅ —— WebSocket + 轮询降级，铃铛实时更新
 2. ~~**搜索原始**~~ ✅ —— PostgreSQL `to_tsvector`/`plainto_tsquery` + GIN 索引
@@ -36,7 +36,7 @@
 10. ~~**无 SLA 机制**~~ ✅ —— sla_hours + planned_finish_time + Celery Beat 4h 扫描
 11. ~~**无邮件通知**~~ ✅ —— SMTP 网关 + 6 种 Jinja2 模板 + 任务/节点/到期/评论邮件
 12. ~~**无文档审批流**~~ ✅ —— 多级审批链 + DocumentReview 模型 + 审批时间线 UI
-13. **无智能处理** —— Tier 3 (需 pgvector + AI 基础设施)
+13. ~~**无智能处理**~~ ✅ —— pgvector + fastembed + DeepSeek RAG + 文档摘要 + 向量检索
 14. ~~**无外部集成**~~ ✅ —— Webhook 事件订阅 + HMAC 签名
 15. ~~**无移动端**~~ ✅ —— 响应式布局 + PWA + drawer 侧栏
 16. ~~**驾驶舱浅层**~~ ✅ —— 高级分析（月趋势/部门热力图/优先级分布 + 下钻明细）
@@ -75,7 +75,7 @@
 | 2.7 | **SLA 时限 + 自动升级** | ✅ | `WorkflowTemplateNode.sla_hours` / `WorkflowNode.sla_status`；事项创建时计算 `planned_finish_time`；Celery Beat `check_sla_overdue` 每 4 小时扫描；UI 绿色(正常)/黄色(即将超时)/红色(已超时)标签 |
 | 2.8 | **个人效率看板** | ✅ | 后端 `GET /dashboard/personal-stats`；工作台 "我的统计" 卡片：本周完成任务、逾期率、连续达标天数、紧急任务数；优先级分布 el-tag 展示 |
 
-### Tier 3：远景蓝图（进行中 4/7）
+### Tier 3：远景蓝图 ✅ 全部完成
 
 目标：让系统从"好用"变为"惊艳"，建立竞争壁垒
 
@@ -83,9 +83,9 @@
 |---|---|---|---|
 | 3.1 | **文档智能管线** | ✅ | 文本提取(docx/xlsx/pdf/txt) + 关键词自动分类 + FTS 相似文档检测 + ECharts 力导向关联图谱 |
 | 3.2 | **文档审批工作流** | ✅ | 多级审批链 (DocumentReview 模型) + 审批时间线 UI + 步骤条 + 批准/驳回操作 |
-| 3.3 | **LDAP/OAuth2 集成** | 未开始 | AD + OAuth2/OIDC + SSO 登录入口 |
+| 3.3 | **LDAP/OAuth2 集成** | ✅ | AD + OAuth2/OIDC + SSO 登录入口 |
 | 3.4 | **Webhook + API 开放** | ✅ | WebhookSubscription 模型 + HMAC-SHA256 签名 + CRUD 管理页 + 异步事件分发 |
-| 3.5 | **AI 文档助手 (RAG)** | 未开始 | pgvector + sentence-transformers + LLM 问答 + 自动摘要 |
+| 3.5 | **AI 文档助手 (RAG)** | ✅ | pgvector + fastembed + DeepSeek + RAG 问答 + 自动摘要 |
 | 3.6 | **移动端适配** | ✅ | drawer 侧栏 + 全局响应式 CSS + PWA manifest + 安全区域适配 |
 | 3.7 | **高级分析驾驶舱** | ✅ | 月度趋势折线图 + 部门工作量热力图 + 优先级分布柱状图 + 卡片下钻明细 |
 
@@ -93,9 +93,9 @@
 
 ## 全部改动文件清单
 
-### 新建文件 (27 个)
+### 新建文件 (38 个)
 
-#### 前端新建 (16 个)
+#### 前端新建 (19 个)
 
 | 文件 | 所属功能 |
 |------|----------|
@@ -116,8 +116,12 @@
 | `frontend/src/styles/responsive.css` | 3.6 全局响应式 CSS |
 | `frontend/public/manifest.json` | 3.6 PWA manifest |
 | `frontend/src/components/documents/DocumentRelationGraph.vue` | 3.1 文档关联力导向图 |
+| `frontend/src/views/ai/AIChatView.vue` | 3.5 AI 聊天主界面 |
+| `frontend/src/api/ai.ts` | 3.5 AI API TypeScript 封装 |
+| `frontend/src/stores/ai.ts` | 3.5 AI 聊天 Pinia 状态管理 |
+| `frontend/src/views/auth/OAuth2CallbackView.vue` | 3.3 OAuth2 回调处理页 |
 
-#### 后端新建 (11 个)
+#### 后端新建 (18 个)
 
 | 文件 | 所属功能 |
 |------|----------|
@@ -132,8 +136,17 @@
 | `backend/app/utils/dispatch.py` | 3.4 异步 fire-and-forget 分发 |
 | `backend/app/utils/text_extractor.py` | 3.1 文档文本提取(docx/xlsx/pdf/txt) |
 | `backend/app/services/document_intelligence.py` | 3.1 自动分类+相似检测+图谱数据 |
+| `backend/app/models/ai.py` | 3.5 AI 数据模型 (Chunk/Conversation/Message) |
+| `backend/app/services/embedding_service.py` | 3.5 fastembed 向量化服务 |
+| `backend/app/services/llm_service.py` | 3.5 DeepSeek API 客户端 (SSE) |
+| `backend/app/services/rag_service.py` | 3.5 RAG 检索增强生成 |
+| `backend/app/services/summarization_service.py` | 3.5 LLM 文档摘要 |
+| `backend/app/tasks/embedding_tasks.py` | 3.5 Celery 后台 embedding 任务 |
+| `backend/app/api/v1/ai.py` | 3.5 AI API 端点 (7 个) |
+| `backend/app/services/ldap_service.py` | 3.3 LDAP/AD 认证服务 |
+| `backend/app/services/oauth2_service.py` | 3.3 OAuth2/OIDC 认证服务 |
 
-### 数据库迁移 (6 个)
+### 数据库迁移 (9 个)
 
 | 迁移 Revision | 内容 |
 |---------------|------|
@@ -143,10 +156,13 @@
 | `add_document_review_2026` | 新增 `document_review` 表 (多级审批) |
 | `add_webhook_subscription_2026` | 新增 `webhook_subscription` 表 |
 | `add_extracted_text_2026` | 新增 `document.extracted_text` 列 (文档智能管线) |
+| `enable_pgvector_2026` | 启用 pgvector 扩展 + AI 表 (chunk/conversation/message) |
+| `add_preview_html_path_2026` | 新增预览 HTML 路径列 |
+| `add_auth_provider_2026` | 新增 `user.auth_provider/oauth_provider/oauth_subject` 列 |
 
 ### 修改文件
 
-#### 前端修改 (18 个)
+#### 前端修改 (23 个)
 
 | 文件 | 改动内容 |
 |------|----------|
@@ -172,8 +188,13 @@
 | `frontend/src/views/documents/DocumentDetailView.vue` | 相似文档面板 + 关联图谱 + 文本提取按钮 |
 | `frontend/src/api/documents.ts` | 文档智能 API 方法 + 类型定义 |
 | `frontend/nginx.conf` | WebSocket 代理支持 |
+| `frontend/src/components/layout/Sidebar.vue` | +AI 助手菜单项 |
+| `frontend/src/router/index.ts` | +AI 聊天路由 + OAuth2 回调路由 |
+| `frontend/src/views/auth/LoginView.vue` | tabs (密码/LDAP) + SSO 登录按钮 |
+| `frontend/src/api/auth.ts` | +ldapLogin + getProviders + OAuth2 方法 |
+| `frontend/src/stores/auth.ts` | +ldapLogin action |
 
-#### 后端修改 (19 个)
+#### 后端修改 (24 个)
 
 | 文件 | 改动内容 |
 |------|----------|
@@ -197,6 +218,13 @@
 | `backend/app/dependencies.py` | _get_async_session_factory() 导出 |
 | `backend/app/models/document.py` | Document 模型新增 extracted_text 列 |
 | `backend/app/api/v1/documents.py` | 文档智能端点 (extract-text/similar/graph/suggest) + 上传时触发提取 |
+| `backend/app/config.py` | +AI/RAG 配置 + LDAP 配置 + OAuth2/OIDC 配置 |
+| `backend/app/models/user.py` | +auth_provider/oauth_provider/oauth_subject 字段 |
+| `backend/app/api/v1/auth.py` | +providers + ldap/login + oauth2/authorize + oauth2/callback |
+| `backend/app/api/v1/router.py` | 注册 ai 路由 |
+| `backend/app/services/auth_service.py` | 非本地用户登录提示 |
+| `backend/app/tasks/celery_app.py` | 注册 embedding_tasks |
+| `backend/requirements.txt` | +fastembed + pgvector + ldap3 |
 
 ### 2.1 服务层重构改动（11 个路由 + 8 个 service）
 
