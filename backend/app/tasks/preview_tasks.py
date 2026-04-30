@@ -20,13 +20,13 @@ def get_sync_db():
 
 
 @celery_app.task(bind=True, max_retries=3)
-def convert_to_pdf(self, doc_id: int, storage_path: str, file_type: str):
+def convert_to_html(self, doc_id: int, storage_path: str, file_type: str):
     """
-    Convert a document to PDF for preview using LibreOffice.
+    Convert a document to HTML for in-page preview using LibreOffice.
     1. Download the file from MinIO to a temp path
-    2. Run soffice to convert to PDF
-    3. Upload the resulting PDF to MinIO under preview/{doc_id}/ path
-    4. Update the document's preview_pdf_path in the database
+    2. Run soffice to convert to HTML
+    3. Upload the resulting HTML to MinIO under preview/{doc_id}/ path
+    4. Update the document's preview_html_path in the database
     5. Clean up temp files
     """
     from app.core.storage import minio_client
@@ -52,12 +52,12 @@ def convert_to_pdf(self, doc_id: int, storage_path: str, file_type: str):
         with open(input_path, "wb") as f:
             f.write(file_data)
 
-        # Run LibreOffice conversion
+        # Run LibreOffice conversion to HTML
         soffice_path = settings.LIBREOFFICE_PATH
         cmd = [
             soffice_path,
             "--headless",
-            "--convert-to", "pdf",
+            "--convert-to", "html",
             "--outdir", output_path,
             input_path,
         ]
@@ -73,23 +73,23 @@ def convert_to_pdf(self, doc_id: int, storage_path: str, file_type: str):
             error_msg = result.stderr or result.stdout or "Unknown error"
             raise Exception(f"LibreOffice conversion failed: {error_msg}")
 
-        # Find the generated PDF
-        pdf_files = list(Path(output_path).glob("*.pdf"))
-        if not pdf_files:
-            raise Exception("No PDF file was generated")
+        # Find the generated HTML
+        html_files = list(Path(output_path).glob("*.html"))
+        if not html_files:
+            raise Exception("No HTML file was generated")
 
-        pdf_path = str(pdf_files[0])
+        html_path = str(html_files[0])
 
-        # Read the PDF
-        with open(pdf_path, "rb") as f:
-            pdf_data = f.read()
+        # Read the HTML content as text
+        with open(html_path, "r", encoding="utf-8") as f:
+            html_data = f.read()
 
         # Upload to MinIO under preview/ path
-        preview_object_name = f"preview/{doc_id}/preview.pdf"
+        preview_object_name = f"preview/{doc_id}/preview.html"
         minio_client.upload_file(
             preview_object_name,
-            pdf_data,
-            content_type="application/pdf",
+            html_data.encode("utf-8"),
+            content_type="text/html; charset=utf-8",
         )
 
         # Update database
@@ -112,7 +112,7 @@ def convert_to_pdf(self, doc_id: int, storage_path: str, file_type: str):
             ).scalar_one_or_none()
 
             if doc:
-                doc.preview_pdf_path = preview_object_name
+                doc.preview_html_path = preview_object_name
                 db.commit()
 
             return {
