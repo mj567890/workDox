@@ -27,11 +27,11 @@
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="showCreate" title="从模板创建任务" width="500px">
+    <el-dialog v-model="showCreate" title="从模板创建任务" width="500px" @open="onDialogOpen">
       <el-form :model="form" label-width="80px">
         <el-form-item label="模板">
-          <el-select v-model="form.template_id" placeholder="选择模板" style="width: 100%">
-            <el-option v-for="t in store.templates" :key="t.id" :label="t.name" :value="t.id" />
+          <el-select v-model="form.template_id" placeholder="选择模板" style="width: 100%" filterable>
+            <el-option v-for="t in store.templates" :key="t.id" :label="`${t.name} (${t.category || '未分类'})`" :value="t.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="任务标题">
@@ -54,11 +54,20 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 const store = useTaskMgmtStore()
 const showCreate = ref(false)
 const creating = ref(false)
-const form = reactive({ template_id: 0, title: '' })
+const form = reactive({ template_id: null as number | null, title: '' })
 
 onMounted(async () => {
-  await Promise.all([store.fetchTemplates(), store.fetchTasks()])
+  await store.fetchTemplates()
+  await store.fetchTasks()
 })
+
+async function onDialogOpen() {
+  if (store.templates.length === 0) {
+    await store.fetchTemplates()
+  }
+  form.template_id = null
+  form.title = ''
+}
 
 function statusTag(s: string) {
   const map: Record<string, string> = { pending: 'info', active: 'warning', completed: 'success', cancelled: 'danger' }
@@ -66,13 +75,16 @@ function statusTag(s: string) {
 }
 
 async function handleCreate() {
-  if (!form.template_id) return
+  if (!form.template_id) {
+    ElMessage.warning('请选择模板')
+    return
+  }
   creating.value = true
   try {
     await store.createTask({ template_id: form.template_id, title: form.title || undefined })
     ElMessage.success('任务创建成功')
     showCreate.value = false
-    form.template_id = 0
+    form.template_id = null
     form.title = ''
   } catch {
     // interceptor handles error
