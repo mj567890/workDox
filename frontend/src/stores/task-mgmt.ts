@@ -30,6 +30,12 @@ export const useTaskMgmtStore = defineStore('task-mgmt', () => {
     templates.value = templates.value.filter(t => t.id !== id)
   }
 
+  async function cloneTemplate(id: number) {
+    const tpl = await taskTemplatesApi.clone(id)
+    templates.value.push(tpl)
+    return tpl
+  }
+
   async function fetchTasks(status?: string) {
     loading.value = true
     try {
@@ -58,7 +64,7 @@ export const useTaskMgmtStore = defineStore('task-mgmt', () => {
 
   return {
     templates, tasks, currentBoard, loading,
-    fetchTemplates, createTemplate, deleteTemplate,
+    fetchTemplates, createTemplate, deleteTemplate, cloneTemplate,
     fetchTasks, createTask, deleteTask, fetchBoard,
   }
 })

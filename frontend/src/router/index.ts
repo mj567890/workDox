@@ -57,6 +57,18 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/workflow/WorkflowTemplateListView.vue'),
       },
       {
+        path: 'task-templates',
+        name: 'TaskTemplates',
+        component: () => import('@/views/tasks/TaskTemplateListView.vue'),
+        meta: { roles: ['admin', 'dept_leader'] },
+      },
+      {
+        path: 'task-templates/:id/edit',
+        name: 'TaskTemplateEdit',
+        component: () => import('@/views/tasks/TaskTemplateEditView.vue'),
+        meta: { roles: ['admin', 'dept_leader'] },
+      },
+      {
         path: 'workflow/templates/new',
         name: 'WorkflowTemplateNew',
         component: () => import('@/views/workflow/WorkflowTemplateEditView.vue'),

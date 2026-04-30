@@ -34,6 +34,10 @@
         <el-icon><Finished /></el-icon>
         <span>任务管理</span>
       </el-menu-item>
+      <el-menu-item index="/task-templates" v-if="isDeptLeader || isAdmin">
+        <el-icon><Setting /></el-icon>
+        <span>任务模板</span>
+      </el-menu-item>
       <el-menu-item index="/workflow/templates" v-if="isDeptLeader || isAdmin">
         <el-icon><Connection /></el-icon>
         <span>流程模板</span>
@@ -80,6 +84,7 @@ const activeMenu = computed(() => {
   if (path.startsWith('/matters')) return '/matters'
   if (path.startsWith('/documents')) return '/documents'
   if (path.startsWith('/workflow')) return '/workflow/templates'
+  if (path.startsWith('/task-templates')) return '/task-templates'
   if (path.startsWith('/task-mgmt')) return '/task-mgmt'
   return path
 })
