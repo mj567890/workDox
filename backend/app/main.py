@@ -12,6 +12,17 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await ws_manager.initialize()
+    # Seed preset task templates on first startup
+    from app.dependencies import async_session_factory
+    async with async_session_factory() as db:
+        try:
+            from app.services.template_seeder import seed_templates
+            n = await seed_templates(db)
+            if n:
+                import logging
+                logging.getLogger("uvicorn").info(f"Seeded {n} preset task templates")
+        except Exception:
+            pass
     yield
 
 

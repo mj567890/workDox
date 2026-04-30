@@ -72,6 +72,20 @@ const routes: RouteRecordRaw[] = [
         path: 'tasks',
         name: 'TaskCenter',
         component: () => import('@/views/tasks/TaskCenterView.vue'),
+        meta: { title: '待办任务' },
+      },
+      {
+        path: 'task-mgmt',
+        name: 'TaskMgmt',
+        component: () => import('@/views/tasks/TaskListView.vue'),
+        meta: { title: '任务管理' },
+      },
+      {
+        path: 'task-mgmt/:id',
+        name: 'TaskBoard',
+        component: () => import('@/views/tasks/TaskBoardView.vue'),
+
+        meta: { title: '任务看板' },
       },
       {
         path: 'search',

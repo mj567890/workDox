@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, users, documents, matters, workflow_templates, workflow_nodes, tasks, notifications, search, dashboard, audit, webhooks, ws, public_dashboard, ai
+from app.api.v1 import auth, users, documents, matters, workflow_templates, workflow_nodes, tasks, notifications, search, dashboard, audit, webhooks, ws, public_dashboard, ai, task_templates, task_instances
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
@@ -17,3 +17,5 @@ api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"]
 api_router.include_router(ws.router, tags=["WebSocket"])
 api_router.include_router(public_dashboard.router, tags=["Public Dashboard"])
 api_router.include_router(ai.router, prefix="/ai", tags=["AI Assistant"])
+api_router.include_router(task_templates.router, prefix="/task-templates", tags=["Task Templates"])
+api_router.include_router(task_instances.router, prefix="/task-instances", tags=["Task Instances"])
