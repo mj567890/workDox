@@ -16,12 +16,11 @@ from app.core.storage import minio_client
 from app.models.user import User
 from app.models.document import (
     Document, DocumentVersion, DocumentCategory, Tag,
-    DocumentEditLock, DocumentReview, CrossMatterReference,
+    DocumentEditLock, DocumentReview,
 )
-from app.models.matter import Matter, MatterMember
 from app.utils.file_utils import detect_file_type, generate_storage_path, compute_sha256, is_allowed_file
 from app.services.document_service import (
-    DocumentService, DocumentVersionService, DocumentLockService, CrossReferenceService, DocumentReviewService,
+    DocumentService, DocumentVersionService, DocumentLockService, DocumentReviewService,
 )
 from app.services.document_intelligence import extract_and_store_text, find_similar_by_vector
 from app.utils.text_extractor import extract_text, is_supported
@@ -31,7 +30,6 @@ router = APIRouter()
 document_service = DocumentService()
 version_service = DocumentVersionService()
 lock_service = DocumentLockService()
-reference_service = CrossReferenceService()
 review_service = DocumentReviewService()
 
 
@@ -44,7 +42,6 @@ class DocumentCreate(BaseModel):
     mime_type: str
     storage_path: str
     description: str | None = None
-    matter_id: int | None = None
     category_id: int | None = None
     tag_ids: list[int] = []
     checksum: str | None = None
@@ -67,8 +64,6 @@ class DocumentOut(BaseModel):
     description: str | None
     owner_id: int
     owner_name: str | None
-    matter_id: int | None
-    matter_title: str | None
     category_id: int | None
     category_name: str | None
     status: str
@@ -146,23 +141,6 @@ class TagOut(BaseModel):
         from_attributes = True
 
 
-class ReferenceCreate(BaseModel):
-    matter_id: int
-    is_readonly: bool = True
-
-
-class ReferenceOut(BaseModel):
-    id: int
-    matter_id: int
-    matter_title: str | None
-    is_readonly: bool
-    added_by_name: str | None
-    created_at: str | None
-
-    class Config:
-        from_attributes = True
-
-
 class LockStatusOut(BaseModel):
     is_locked: bool
     locked_by: int | None
@@ -182,7 +160,6 @@ class PendingUpload(BaseModel):
 class CompleteUploadRequest(BaseModel):
     upload_id: str
     filename: str
-    matter_id: int | None = None
     category_id: int | None = None
     description: str | None = None
     tag_ids: list[int] = []
@@ -217,29 +194,6 @@ async def _check_document_access(user: User, doc: Document, db: AsyncSession):
     if doc.owner_id == user.id:
         return
 
-    if doc.matter_id:
-        member_result = await db.execute(
-            select(MatterMember).where(
-                MatterMember.matter_id == doc.matter_id,
-                MatterMember.user_id == user.id,
-            )
-        )
-        if member_result.scalar_one_or_none():
-            return
-
-        if RoleCode.DEPT_LEADER in role_codes:
-            matter_result = await db.execute(
-                select(Matter.owner_id).where(Matter.id == doc.matter_id)
-            )
-            matter_owner_id = matter_result.scalar_one_or_none()
-            if matter_owner_id:
-                owner_result = await db.execute(
-                    select(User.department_id).where(User.id == matter_owner_id)
-                )
-                matter_dept_id = owner_result.scalar_one_or_none()
-                if matter_dept_id and user.department_id == matter_dept_id:
-                    return
-
     raise ForbiddenException(detail="Access denied to this document")
 
 
@@ -270,14 +224,12 @@ def _doc_to_out(d: Document) -> DocumentOut:
         description=d.description,
         owner_id=d.owner_id,
         owner_name=d.owner.real_name if d.owner else None,
-        matter_id=d.matter_id,
-        matter_title=d.matter.title if d.matter else None,
         category_id=d.category_id,
         category_name=d.category.name if d.category else None,
         status=d.status,
         current_version_id=d.current_version_id,
         current_version_no=current_version_no,
-        permission_scope=getattr(d, 'permission_scope', 'matter'),
+        permission_scope=getattr(d, 'permission_scope', 'private'),
         is_deleted=d.is_deleted,
         tags=tags,
         created_at=d.created_at.isoformat() if d.created_at else None,
@@ -295,7 +247,6 @@ async def list_documents(
     keyword: str = Query(None),
     file_type: str = Query(None),
     category_id: int = Query(None),
-    matter_id: int = Query(None),
     tag: str = Query(None),
     status: str = Query(None),
     current_user: User = Depends(get_current_user),
@@ -316,8 +267,6 @@ async def list_documents(
         filters["file_type"] = file_type
     if category_id:
         filters["category_id"] = category_id
-    if matter_id:
-        filters["matter_id"] = matter_id
     if status:
         filters["status"] = status
     if tag_id:
@@ -338,7 +287,6 @@ async def list_documents(
 @router.post("/upload", response_model=DocumentOut)
 async def upload_document(
     file: UploadFile = File(...),
-    matter_id: int | None = Form(None),
     category_id: int | None = Form(None),
     description: str | None = Form(None),
     tag_ids: str | None = Form(None),
@@ -362,7 +310,7 @@ async def upload_document(
 
     file_type = detect_file_type(file.filename, file.content_type or "application/octet-stream")
     checksum = compute_sha256(content)
-    storage_path = generate_storage_path(file.filename, matter_id)
+    storage_path = generate_storage_path(file.filename)
     mime_type = file.content_type or "application/octet-stream"
 
     # Upload to MinIO
@@ -388,8 +336,7 @@ async def upload_document(
         storage_path=storage_path,
         description=description,
         owner_id=current_user.id,
-        matter_id=matter_id,
-        category_id=category_id,
+                category_id=category_id,
         status="draft",
     )
     db.add(doc)
@@ -429,8 +376,7 @@ async def upload_document(
         select(Document)
         .options(
             selectinload(Document.owner),
-            selectinload(Document.matter),
-            selectinload(Document.category),
+                        selectinload(Document.category),
             selectinload(Document.tags),
         )
         .where(Document.id == doc.id)
@@ -446,8 +392,6 @@ async def upload_document(
         description=doc.description,
         owner_id=doc.owner_id,
         owner_name=doc.owner.real_name if doc.owner else None,
-        matter_id=doc.matter_id,
-        matter_title=doc.matter.title if doc.matter else None,
         category_id=doc.category_id,
         category_name=doc.category.name if doc.category else None,
         status=doc.status,
@@ -516,7 +460,7 @@ async def complete_chunked_upload(
 
     file_type = detect_file_type(data.filename, "application/octet-stream")
     checksum = compute_sha256(merged_data)
-    storage_path = generate_storage_path(data.filename, data.matter_id)
+    storage_path = generate_storage_path(data.filename)
     mime_type = "application/octet-stream"
 
     minio_client.upload_file(storage_path, merged_data, content_type=mime_type)
@@ -534,8 +478,7 @@ async def complete_chunked_upload(
         storage_path=storage_path,
         description=data.description,
         owner_id=current_user.id,
-        matter_id=data.matter_id,
-        category_id=data.category_id,
+                category_id=data.category_id,
         status="draft",
     )
     db.add(doc)
@@ -572,8 +515,7 @@ async def complete_chunked_upload(
         select(Document)
         .options(
             selectinload(Document.owner),
-            selectinload(Document.matter),
-            selectinload(Document.category),
+                        selectinload(Document.category),
             selectinload(Document.tags),
         )
         .where(Document.id == doc.id)
@@ -594,8 +536,6 @@ async def complete_chunked_upload(
         description=doc.description,
         owner_id=doc.owner_id,
         owner_name=doc.owner.real_name if doc.owner else None,
-        matter_id=doc.matter_id,
-        matter_title=doc.matter.title if doc.matter else None,
         category_id=doc.category_id,
         category_name=doc.category.name if doc.category else None,
         status=doc.status,
@@ -897,7 +837,7 @@ async def upload_new_version(
     if len(content) > settings.MAX_FILE_SIZE:
         raise ValidationException(detail="File too large")
 
-    storage_path = generate_storage_path(file.filename, doc.matter_id)
+    storage_path = generate_storage_path(file.filename)
     checksum = compute_sha256(content)
 
     minio_client.upload_file(
@@ -990,72 +930,6 @@ async def get_lock_status(
         is_locked=False, locked_by=None, locked_by_name=None,
         locked_at=None, expires_at=None,
     )
-
-
-@router.post("/{doc_id}/reference", response_model=ReferenceOut)
-async def add_cross_reference(
-    doc_id: int,
-    data: ReferenceCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    current_user_dict = _user_to_dict(current_user)
-    # Verify document exists and user has access
-    await document_service.get_document(db, doc_id, current_user_dict)
-
-    ref = await reference_service.add_reference(
-        db, doc_id, data.matter_id, current_user.id, data.is_readonly
-    )
-
-    # Get matter title
-    matter_result = await db.execute(select(Matter).where(Matter.id == data.matter_id))
-    matter = matter_result.scalar_one_or_none()
-
-    return ReferenceOut(
-        id=ref.id, matter_id=ref.matter_id,
-        matter_title=matter.title if matter else None,
-        is_readonly=ref.is_readonly,
-        added_by_name=current_user.real_name,
-        created_at=ref.created_at.isoformat() if ref.created_at else None,
-    )
-
-
-@router.get("/{doc_id}/references", response_model=list[ReferenceOut])
-async def list_references(
-    doc_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    current_user_dict = _user_to_dict(current_user)
-    # Verify document exists and user has access
-    await document_service.get_document(db, doc_id, current_user_dict)
-
-    refs = await reference_service.get_references(db, doc_id)
-    return [
-        ReferenceOut(
-            id=r.id, matter_id=r.matter_id,
-            matter_title=r.matter.title if r.matter else None,
-            is_readonly=r.is_readonly,
-            added_by_name=r.adder.real_name if r.adder else None,
-            created_at=r.created_at.isoformat() if r.created_at else None,
-        )
-        for r in refs
-    ]
-
-
-@router.delete("/{doc_id}/references/{ref_id}")
-async def remove_reference(
-    doc_id: int,
-    ref_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    current_user_dict = _user_to_dict(current_user)
-    # Verify document exists and user has access
-    await document_service.get_document(db, doc_id, current_user_dict)
-
-    await reference_service.remove_reference(db, ref_id, current_user.id)
-    return {"detail": "Reference removed"}
 
 
 # ---------- Approval Schemas ----------

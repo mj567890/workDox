@@ -51,15 +51,6 @@ export interface TagItem {
   updated_at: string | null
 }
 
-export interface MatterTypeItem {
-  id: number
-  name: string
-  code: string
-  description: string | null
-  created_at: string | null
-  updated_at: string | null
-}
-
 export const usersApi = {
   getList: (params?: Record<string, any>) => get<PaginatedResponse<UserItem>>('/users', params),
   create: (data: Record<string, any>) => post<UserItem>('/users', data),
@@ -84,8 +75,4 @@ export const usersApi = {
   createTag: (data: Record<string, any>) => post<TagItem>('/users/tags', data),
   updateTag: (id: number, data: Record<string, any>) => put(`/users/tags/${id}`, data),
   deleteTag: (id: number) => del(`/users/tags/${id}`),
-  getMatterTypes: () => get<MatterTypeItem[]>('/users/matter-types'),
-  createMatterType: (data: Record<string, any>) => post<MatterTypeItem>('/users/matter-types', data),
-  updateMatterType: (id: number, data: Record<string, any>) => put(`/users/matter-types/${id}`, data),
-  deleteMatterType: (id: number) => del(`/users/matter-types/${id}`),
 }

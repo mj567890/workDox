@@ -5,23 +5,19 @@ export function usePermission() {
   const authStore = useAuthStore()
 
   const canEditDocument = computed(() =>
-    authStore.isAdmin || authStore.isDeptLeader || authStore.isMatterOwner
+    authStore.isAdmin || authStore.isDeptLeader
   )
 
   const canDeleteDocument = computed(() =>
-    authStore.isAdmin || authStore.isDeptLeader || authStore.isMatterOwner
+    authStore.isAdmin || authStore.isDeptLeader
   )
 
   const canLockDocument = computed(() =>
-    authStore.isAdmin || authStore.isDeptLeader || authStore.isMatterOwner
+    authStore.isAdmin || authStore.isDeptLeader
   )
 
   const canSetOfficialVersion = computed(() =>
-    authStore.isAdmin || authStore.isDeptLeader || authStore.isMatterOwner
-  )
-
-  const canCreateMatter = computed(() =>
-    authStore.isAdmin || authStore.isDeptLeader || authStore.isMatterOwner
+    authStore.isAdmin || authStore.isDeptLeader
   )
 
   const canViewDashboard = computed(() =>
@@ -37,7 +33,6 @@ export function usePermission() {
     canDeleteDocument,
     canLockDocument,
     canSetOfficialVersion,
-    canCreateMatter,
     canViewDashboard,
     canManageUsers,
     canManageRoles,

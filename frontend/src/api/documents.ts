@@ -9,8 +9,6 @@ export interface DocumentItem {
   description: string | null
   owner_id: number
   owner_name: string
-  matter_id: number | null
-  matter_title: string | null
   category_id: number | null
   category_name: string | null
   status: string
@@ -169,9 +167,6 @@ export const documentsApi = {
   getTags: () => get<TagItem[]>('/documents/tags'),
   createTag: (data: Record<string, any>) => post<TagItem>('/documents/tags', data),
   deleteTag: (id: number) => del(`/documents/tags/${id}`),
-  addReference: (id: number, data: { matter_id: number; is_readonly: boolean }) => post(`/documents/${id}/reference`, data),
-  getReferences: (id: number) => get(`/documents/${id}/references`),
-  removeReference: (id: number, refId: number) => del(`/documents/${id}/references/${refId}`),
 
   // Approval workflow
   submitForReview: (id: number, reviewerIds: number[]) =>

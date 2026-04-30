@@ -1,50 +1,73 @@
 import { get } from './index'
-import type { PaginatedResponse } from './documents'
 
 export interface DashboardOverview {
-  total_matters: number
-  in_progress_matters: number
-  overdue_matters: number
-  completed_matters: number
+  total_tasks: number
+  active_tasks: number
+  completed_tasks: number
   completion_rate: number
+  pipeline_progress: number
+  overdue_stages: number
+  total_slots: number
+  filled_slots: number
   total_documents: number
-  pending_tasks: number
-  risk_count: number
 }
 
-export interface KeyProjectItem {
-  matter_id: number
-  matter_no: string
+export interface ActiveTaskItem {
+  task_id: number
   title: string
-  owner_name: string
+  template_name: string
+  current_stage: string
+  current_stage_order: number
   progress: number
   status: string
-  current_node: string | null
-  due_date: string | null
-  risk_level: string
+  creator_id: number
+  created_at: string | null
 }
 
 export interface RiskAlertItem {
-  matter_id: number
-  matter_no: string
+  task_id: number
   title: string
   risk_type: string
   risk_level: string
   description: string
+  stage_name: string | null
+  days_stalled: number | null
   days_overdue: number | null
 }
 
-export interface ProgressChartData {
-  labels: string[]
-  completed: number[]
-  in_progress: number[]
-  pending: number[]
+export interface StageFunnelItem {
+  stage_order: number
+  count: number
 }
 
-export interface TypeDistributionData {
+export interface TemplateDistItem {
   name: string
   count: number
-  percentage: number
+}
+
+export interface StatusDistItem {
+  status: string
+  label: string
+  count: number
+}
+
+export interface MonthlyTrendItem {
+  month: string
+  total: number
+  completed: number
+}
+
+export interface DeptWorkloadItem {
+  department_name: string
+  total_tasks: number
+  completed_tasks: number
+}
+
+export interface AdvancedAnalytics {
+  departments: DeptWorkloadItem[]
+  monthly_trend: MonthlyTrendItem[]
+  status_distribution: StatusDistItem[]
+  stage_funnel: StageFunnelItem[]
 }
 
 export interface PersonalStats {
@@ -53,37 +76,16 @@ export interface PersonalStats {
   overdue_rate: number
   avg_completion_days: number
   streak_days: number
-  priority_distribution: { priority: string; count: number }[]
-}
-
-export interface DepartmentWorkload {
-  department_name: string
-  total_matters: number
-  completed_matters: number
-  overdue_matters: number
-  avg_progress: number
-  workload_score: number
-}
-
-export interface MonthlyTrend {
-  month: string
-  total: number
-  completed: number
-  overdue: number
-}
-
-export interface AdvancedAnalytics {
-  departments: DepartmentWorkload[]
-  monthly_trend: MonthlyTrend[]
-  priority_breakdown: { priority: string; count: number }[]
+  total_tasks: number
+  status_distribution: { status: string; label: string; count: number }[]
 }
 
 export const dashboardApi = {
   getOverview: () => get<DashboardOverview>('/dashboard/overview'),
-  getKeyProjects: () => get<KeyProjectItem[]>('/dashboard/key-projects'),
+  getActiveTasks: () => get<ActiveTaskItem[]>('/dashboard/active-tasks'),
   getRisks: () => get<RiskAlertItem[]>('/dashboard/risks'),
-  getProgressChart: (period?: string) => get<ProgressChartData>('/dashboard/progress-chart', { period }),
-  getTypeDistribution: () => get<TypeDistributionData[]>('/dashboard/type-distribution'),
+  getStageFunnel: () => get<StageFunnelItem[]>('/dashboard/stage-funnel'),
+  getTemplateDistribution: () => get<TemplateDistItem[]>('/dashboard/template-distribution'),
   getPersonalStats: () => get<PersonalStats>('/dashboard/personal-stats'),
   getAdvancedAnalytics: () => get<AdvancedAnalytics>('/dashboard/advanced'),
 }

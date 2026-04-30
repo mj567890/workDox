@@ -9,7 +9,7 @@ export function useFileUpload(options?: {
   const uploading = ref(false)
   const progress = ref(0)
 
-  async function upload(files: File[], matterId?: number, categoryId?: number) {
+  async function upload(files: File[], categoryId?: number) {
     uploading.value = true
     progress.value = 0
     const results = []
@@ -24,7 +24,6 @@ export function useFileUpload(options?: {
 
         const formData = new FormData()
         formData.append('file', file)
-        if (matterId) formData.append('matter_id', String(matterId))
         if (categoryId) formData.append('category_id', String(categoryId))
 
         const { documentsApi } = await import('@/api/documents')

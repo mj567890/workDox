@@ -4,7 +4,7 @@ from sqlalchemy import select, func, and_, desc, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.task import OperationLog
+from app.models.operation_log import OperationLog
 from app.core.pagination import PaginationParams
 
 

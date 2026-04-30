@@ -12,10 +12,11 @@ from app.models.base import Base
 from app.models.department import Department
 from app.models.user import User
 from app.models.role import Role
-from app.models.document import Document, DocumentVersion, DocumentTag, DocumentEditLock, CrossMatterReference, MatterType, DocumentCategory, Tag
-from app.models.matter import Matter, MatterMember, MatterComment
-from app.models.workflow import WorkflowTemplate, WorkflowTemplateNode, WorkflowNode
-from app.models.task import Task, Notification, OperationLog
+from app.models.document import Document, DocumentVersion, DocumentTag, DocumentEditLock, DocumentCategory, Tag
+from app.models.notification import Notification
+from app.models.operation_log import OperationLog
+from app.models.system_config import SystemConfig
+from app.models.ai_provider import AIProvider
 from app.models.task_manager import TaskTemplate, StageTemplate, SlotTemplate, ProjectTask, ProjectStage, ProjectSlot, SlotVersion
 
 settings = get_settings()

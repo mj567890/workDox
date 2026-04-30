@@ -33,10 +33,20 @@
     <!-- Main Chat -->
     <div class="chat-main">
       <div class="chat-header">
-        <span class="chat-title">
-          文档智能助手
-          <el-tag size="small" style="margin-left: 8px">DeepSeek</el-tag>
-        </span>
+        <span class="chat-title">文档智能助手</span>
+        <el-select
+          v-model="store.selectedProviderId"
+          placeholder="选择 AI 模型"
+          style="width: 220px; margin-left: 16px"
+          size="default"
+        >
+          <el-option
+            v-for="p in store.providers"
+            :key="p.id"
+            :label="`${p.name} (${p.model})`"
+            :value="p.id"
+          />
+        </el-select>
       </div>
 
       <div class="chat-messages" ref="messagesContainer">
@@ -109,6 +119,7 @@ const messagesContainer = ref<HTMLElement>()
 
 onMounted(() => {
   store.fetchConversations()
+  store.fetchProviders()
 })
 
 async function selectConversation(id: number) {
@@ -204,6 +215,8 @@ function scrollToBottom() {
   padding: 16px 24px;
   border-bottom: 1px solid var(--el-border-color);
   background: var(--el-bg-color);
+  display: flex;
+  align-items: center;
 }
 .chat-title {
   font-size: 18px;

@@ -40,7 +40,6 @@ instance.interceptors.response.use(
         case 401:
           localStorage.removeItem('token')
           router.push('/login')
-          ElMessage.error('登录已过期，请重新登录')
           break
         case 403:
           ElMessage.error(msg(data.detail) || '权限不足')

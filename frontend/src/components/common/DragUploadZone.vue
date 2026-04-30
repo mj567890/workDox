@@ -70,12 +70,10 @@ interface UploadFile {
 }
 
 const props = withDefaults(defineProps<{
-  matterId?: number | null
   categoryId?: number | null
   multiple?: boolean
   accept?: string
 }>(), {
-  matterId: null,
   categoryId: null,
   multiple: true,
   accept: undefined,
@@ -190,7 +188,6 @@ async function uploadFileItem(file: UploadFile, rawFile: File) {
 
   const formData = new FormData()
   formData.append('file', rawFile)
-  if (props.matterId) formData.append('matter_id', String(props.matterId))
   if (props.categoryId) formData.append('category_id', String(props.categoryId))
 
   let lastLoaded = 0

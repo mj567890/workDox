@@ -11,7 +11,6 @@ export const useAuthStore = defineStore('auth', () => {
   const userRoles = computed(() => user.value?.roles.map(r => r.role_code) || [])
   const isAdmin = computed(() => userRoles.value.includes('admin'))
   const isDeptLeader = computed(() => userRoles.value.includes('dept_leader'))
-  const isMatterOwner = computed(() => userRoles.value.includes('matter_owner'))
 
   function hasRole(roleCode: string): boolean {
     return userRoles.value.includes(roleCode)
@@ -53,7 +52,6 @@ export const useAuthStore = defineStore('auth', () => {
     userRoles,
     isAdmin,
     isDeptLeader,
-    isMatterOwner,
     hasRole,
     login,
     ldapLogin,

@@ -77,13 +77,6 @@
           <el-switch v-model="notificationSettings.taskReminder" />
         </div>
         <el-divider />
-        <div class="setting-item">
-          <div class="setting-label">
-            <span class="setting-title">事项状态变更通知</span>
-            <span class="setting-desc">关注的事项状态发生变更时通知</span>
-          </div>
-          <el-switch v-model="notificationSettings.matterUpdate" />
-        </div>
       </div>
       <div class="notification-tip">
         <el-alert
@@ -186,7 +179,6 @@ const notificationSettings = reactive({
   inApp: true,
   email: true,
   taskReminder: true,
-  matterUpdate: false,
 })
 </script>
 

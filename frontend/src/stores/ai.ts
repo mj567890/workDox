@@ -4,8 +4,8 @@ import {
   aiApi,
   type Conversation,
   type Message,
-  type ChatRequest,
   type ChatResponse,
+  type ProviderOption,
 } from '@/api/ai'
 
 export const useAIStore = defineStore('ai', () => {
@@ -13,9 +13,15 @@ export const useAIStore = defineStore('ai', () => {
   const currentMessages = ref<Message[]>([])
   const currentConversationId = ref<number | null>(null)
   const loading = ref(false)
+  const providers = ref<ProviderOption[]>([])
+  const selectedProviderId = ref<number | null>(null)
 
   async function fetchConversations() {
     conversations.value = await aiApi.getConversations()
+  }
+
+  async function fetchProviders() {
+    providers.value = await aiApi.getProviders()
   }
 
   async function fetchMessages(convId: number) {
@@ -33,6 +39,7 @@ export const useAIStore = defineStore('ai', () => {
         query,
         document_ids: documentIds,
         conversation_id: currentConversationId.value ?? undefined,
+        provider_id: selectedProviderId.value ?? undefined,
       })
       currentConversationId.value = response.conversation_id
       currentMessages.value.push(
@@ -77,7 +84,10 @@ export const useAIStore = defineStore('ai', () => {
     currentMessages,
     currentConversationId,
     loading,
+    providers,
+    selectedProviderId,
     fetchConversations,
+    fetchProviders,
     fetchMessages,
     sendMessage,
     deleteConversation,

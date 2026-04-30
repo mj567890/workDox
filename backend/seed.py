@@ -9,10 +9,8 @@ from app.models.base import Base
 from app.models.department import Department
 from app.models.user import User, user_role
 from app.models.role import Role
-from app.models.document import MatterType, DocumentCategory, Tag
-from app.models.matter import Matter, MatterMember
-from app.models.workflow import WorkflowTemplate, WorkflowTemplateNode
-from app.models.task import Task, Notification
+from app.models.document import DocumentCategory, Tag
+from app.models.notification import Notification
 
 settings = get_settings()
 engine = create_engine(settings.DATABASE_URL_SYNC, echo=False)
@@ -80,16 +78,6 @@ def seed():
             ])
         )
 
-        # ── Matter Types ──
-        matter_types = [
-            MatterType(name="常规行政事项", code="general_admin", description="日常行政办公事项"),
-            MatterType(name="项目审批事项", code="project_approval", description="需要多级审批的项目类事项"),
-            MatterType(name="会议纪要事项", code="meeting_minutes", description="会议相关事项"),
-            MatterType(name="文件签发事项", code="doc_issuance", description="公文签发流转事项"),
-        ]
-        db.add_all(matter_types)
-        db.flush()
-
         # ── Document Categories ──
         doc_categories = [
             DocumentCategory(name="通知文件", code="notice", sort_order=1, is_system=True),
@@ -113,62 +101,12 @@ def seed():
         db.add_all(tags)
         db.flush()
 
-        # ── Sample Matter ──
-        matter = Matter(
-            matter_no="ODMS-2026-0001",
-            title="2026年度信息化建设方案审批",
-            type_id=matter_types[1].id,
-            owner_id=staff_user.id,
-            status="in_progress",
-            is_key_project=True,
-            progress=35.0,
-            due_date=None,
-            description="审批学院2026年度信息化建设方案，涉及采购预算、技术选型等内容。",
-        )
-        db.add(matter)
-        db.flush()
-
-        # Matter members
-        db.add_all([
-            MatterMember(matter_id=matter.id, user_id=staff_user.id, role_in_matter="owner"),
-            MatterMember(matter_id=matter.id, user_id=leader_user.id, role_in_matter="collaborator"),
-        ])
-
-        # ── Workflow Template ──
-        template = WorkflowTemplate(
-            name="标准审批流程",
-            matter_type_id=matter_types[1].id,
-            is_active=True,
-            description="适用于项目审批类事项",
-        )
-        db.add(template)
-        db.flush()
-
-        db.add_all([
-            WorkflowTemplateNode(template_id=template.id, node_name="材料准备", node_order=1, owner_role="matter_owner", description="准备审批所需材料"),
-            WorkflowTemplateNode(template_id=template.id, node_name="部门审核", node_order=2, owner_role="dept_leader", description="部门领导审核"),
-            WorkflowTemplateNode(template_id=template.id, node_name="终审确认", node_order=3, owner_role="dept_leader", description="终审签字确认"),
-            WorkflowTemplateNode(template_id=template.id, node_name="归档", node_order=4, owner_role="general_staff", description="归档材料"),
-        ])
-
-        # ── Sample Task ──
-        task = Task(
-            title="审核信息化建设方案",
-            matter_id=matter.id,
-            assignee_id=leader_user.id,
-            assigner_id=staff_user.id,
-            status="pending",
-            priority="high",
-        )
-        db.add(task)
-
         # ── Sample Notification ──
         notif = Notification(
             user_id=leader_user.id,
-            type="task_assigned",
-            title="新任务待办",
-            content="张三给您分配了任务：审核信息化建设方案",
-            related_matter_id=matter.id,
+            type="system",
+            title="欢迎使用 WorkDox",
+            content="系统已初始化完成，开始使用吧！",
         )
         db.add(notif)
 

@@ -13,14 +13,12 @@ router = APIRouter()
 
 class TaskCreate(BaseModel):
     template_id: int
-    matter_id: int | None = None
     title: str | None = None
 
 
 class TaskUpdate(BaseModel):
     title: str | None = None
     status: str | None = None
-    matter_id: int | None = None
 
 
 class SlotUpload(BaseModel):

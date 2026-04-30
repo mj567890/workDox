@@ -52,7 +52,7 @@ function renderChart(data: GraphData) {
 
   const categoryColors: Record<number, string> = {
     0: '#409EFF',  // source
-    1: '#67C23A',  // same matter
+    1: '#67C23A',  // version
     2: '#E6A23C',  // similar
     3: '#909399',  // same tags
   }
@@ -65,11 +65,11 @@ function renderChart(data: GraphData) {
           return params.data.label || ''
         }
         const d = params.data
-        return `<b>${d.name}</b><br/>类型: ${['当前文档', '同事项', '内容相似', '相同标签'][d.category] || '其他'}`
+        return `<b>${d.name}</b><br/>类型: ${['当前文档', '版本', '内容相似', '相同标签'][d.category] || '其他'}`
       },
     },
     legend: {
-      data: data.categories?.map((c: any) => c.name) || ['当前文档', '同事项', '内容相似', '相同标签'],
+      data: data.categories?.map((c: any) => c.name) || ['当前文档', '版本', '内容相似', '相同标签'],
       bottom: 0,
     },
     series: [

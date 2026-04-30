@@ -1,7 +1,7 @@
 from sqlalchemy import select, func, and_, desc, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.task import Notification
+from app.models.notification import Notification
 from app.core.pagination import PaginationParams
 from app.core.exceptions import NotFoundException, ForbiddenException
 
@@ -15,14 +15,12 @@ class NotificationService:
         type: str,
         title: str,
         content: str | None = None,
-        matter_id: int | None = None,
     ) -> Notification:
         notification = Notification(
             user_id=user_id,
             type=type,
             title=title,
             content=content,
-            related_matter_id=matter_id,
         )
         db.add(notification)
         await db.commit()

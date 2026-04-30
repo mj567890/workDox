@@ -6,18 +6,6 @@ from pgvector.sqlalchemy import Vector
 from app.models.base import Base, TimestampMixin
 
 
-class MatterType(Base, TimestampMixin):
-    __tablename__ = "matter_type"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)
-    code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
-    description: Mapped[str | None] = mapped_column(String(500))
-
-    matters: Mapped[list["Matter"]] = relationship("Matter", back_populates="matter_type_obj")
-    workflow_templates: Mapped[list["WorkflowTemplate"]] = relationship("WorkflowTemplate", back_populates="matter_type_obj")
-
-
 class DocumentCategory(Base, TimestampMixin):
     __tablename__ = "document_category"
 
@@ -52,19 +40,17 @@ class Document(Base, TimestampMixin):
     storage_path: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     owner_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
-    matter_id: Mapped[int | None] = mapped_column(ForeignKey("matter.id"))
     category_id: Mapped[int | None] = mapped_column(ForeignKey("document_category.id"))
     status: Mapped[str] = mapped_column(String(30), default="draft")
     current_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    permission_scope: Mapped[str] = mapped_column(String(30), default="matter")
+    permission_scope: Mapped[str] = mapped_column(String(30), default="private")
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     preview_pdf_path: Mapped[str | None] = mapped_column(String(500))
     preview_html_path: Mapped[str | None] = mapped_column(String(500))
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    embedding = mapped_column(Vector(768), nullable=True)
+    embedding = mapped_column(Vector(512), nullable=True)
 
     owner = relationship("User")
-    matter = relationship("Matter", back_populates="documents")
     category = relationship("DocumentCategory", back_populates="documents")
     tags: Mapped[list["Tag"]] = relationship("Tag", secondary="document_tag", back_populates="documents")
     versions: Mapped[list["DocumentVersion"]] = relationship("DocumentVersion", back_populates="document", order_by="DocumentVersion.version_no.desc()")
@@ -75,7 +61,6 @@ class Document(Base, TimestampMixin):
     )
     edit_lock = relationship("DocumentEditLock", back_populates="document", uselist=False)
     reviews: Mapped[list["DocumentReview"]] = relationship("DocumentReview", back_populates="document", order_by="DocumentReview.review_level")
-    cross_references: Mapped[list["CrossMatterReference"]] = relationship("CrossMatterReference", back_populates="document")
     chunks: Mapped[list["DocumentChunk"]] = relationship("DocumentChunk", back_populates="document", order_by="DocumentChunk.chunk_index")
 
     __table_args__ = (
@@ -143,22 +128,4 @@ class DocumentReview(Base, TimestampMixin):
 
     __table_args__ = (
         UniqueConstraint("document_id", "review_level", name="uq_doc_review_level"),
-    )
-
-
-class CrossMatterReference(Base, TimestampMixin):
-    __tablename__ = "cross_matter_reference"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    document_id: Mapped[int] = mapped_column(ForeignKey("document.id"), nullable=False)
-    matter_id: Mapped[int] = mapped_column(ForeignKey("matter.id"), nullable=False)
-    is_readonly: Mapped[bool] = mapped_column(Boolean, default=True)
-    added_by: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
-
-    document = relationship("Document", back_populates="cross_references")
-    matter = relationship("Matter", back_populates="cross_references")
-    adder = relationship("User")
-
-    __table_args__ = (
-        UniqueConstraint("document_id", "matter_id", name="uq_doc_matter_ref"),
     )

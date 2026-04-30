@@ -59,7 +59,6 @@ class ProjectTask(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     template_id: Mapped[int] = mapped_column(ForeignKey("task_template.id"), nullable=False)
-    matter_id: Mapped[int | None] = mapped_column(ForeignKey("matter.id"))
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="pending")
     current_stage_order: Mapped[int] = mapped_column(Integer, default=1)

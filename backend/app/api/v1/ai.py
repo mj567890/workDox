@@ -3,10 +3,10 @@
 import json
 import logging
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
@@ -14,6 +14,7 @@ from app.models.user import User
 from app.models.ai import AIConversation, AIMessage
 from app.services.rag_service import RAGService
 from app.services.summarization_service import SummarizationService
+from app.services.ai_config import get_default_provider, get_provider_config, list_providers
 
 router = APIRouter()
 rag_service = RAGService()
@@ -27,6 +28,7 @@ class ChatRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=2000)
     document_ids: list[int] | None = None
     conversation_id: int | None = None
+    provider_id: int | None = None
 
 
 class ChatResponse(BaseModel):
@@ -87,7 +89,38 @@ async def _get_or_create_conversation(
     return conv
 
 
+async def _get_provider(db: AsyncSession, provider_id: int | None) -> dict:
+    """Resolve provider config from provider_id or default."""
+    if provider_id:
+        return await get_provider_config(db, provider_id)
+    return await get_default_provider(db)
+
+
 # ── Routes ───────────────────────────────────────────────────────
+
+@router.get("/providers")
+async def get_providers(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List enabled AI providers for the chat selector."""
+    from app.models.ai_provider import AIProvider
+    result = await db.execute(
+        select(AIProvider)
+        .where(AIProvider.is_enabled == True)
+        .order_by(AIProvider.sort_order, AIProvider.id)
+    )
+    providers = result.scalars().all()
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "provider_type": p.provider_type,
+            "model": p.model,
+        }
+        for p in providers
+    ]
+
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
@@ -109,9 +142,12 @@ async def chat(
             {"role": m.role, "content": m.content} for m in messages
         ]
 
+    provider = await _get_provider(db, data.provider_id)
+
     result = await rag_service.ask(
         db,
         data.query,
+        provider=provider,
         document_ids=data.document_ids,
         chat_history=chat_history,
     )
@@ -159,11 +195,14 @@ async def chat_stream(
             {"role": m.role, "content": m.content} for m in messages
         ]
 
+    provider = await _get_provider(db, data.provider_id)
+
     async def event_stream():
         full_answer = ""
         try:
             async for chunk in rag_service.ask_stream(
                 db, data.query,
+                provider=provider,
                 document_ids=data.document_ids,
                 chat_history=chat_history,
             ):
@@ -225,7 +264,7 @@ async def summarize_document(
         )
 
     summary = await summarization_service.summarize_document(
-        doc.extracted_text, doc.original_name
+        doc.extracted_text, db, doc.original_name
     )
     return SummarizeResponse(document_id=data.document_id, summary=summary)
 
@@ -248,22 +287,31 @@ async def list_conversations(
 ):
     """List AI chat conversations for current user."""
     result = await db.execute(
-        select(AIConversation)
+        select(
+            AIConversation.id,
+            AIConversation.title,
+            AIConversation.document_id,
+            func.count(AIMessage.id).label("message_count"),
+            AIConversation.created_at,
+            AIConversation.updated_at,
+        )
+        .outerjoin(AIMessage, AIMessage.conversation_id == AIConversation.id)
         .where(AIConversation.user_id == current_user.id)
+        .group_by(AIConversation.id)
         .order_by(AIConversation.updated_at.desc())
         .limit(50)
     )
-    convs = result.scalars().all()
+    rows = result.all()
     return [
         ConversationOut(
-            id=c.id,
-            title=c.title,
-            document_id=c.document_id,
-            message_count=len(c.messages) if c.messages else 0,
-            created_at=c.created_at.isoformat() if c.created_at else None,
-            updated_at=c.updated_at.isoformat() if c.updated_at else None,
+            id=row.id,
+            title=row.title,
+            document_id=row.document_id,
+            message_count=row.message_count,
+            created_at=row.created_at.isoformat() if row.created_at else None,
+            updated_at=row.updated_at.isoformat() if row.updated_at else None,
         )
-        for c in convs
+        for row in rows
     ]
 
 
@@ -274,7 +322,6 @@ async def get_conversation_messages(
     db: AsyncSession = Depends(get_db),
 ):
     """Get messages for a conversation."""
-    # Verify ownership
     result = await db.execute(
         select(AIConversation).where(
             AIConversation.id == conv_id,

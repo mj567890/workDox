@@ -46,7 +46,7 @@ export const useTaskMgmtStore = defineStore('task-mgmt', () => {
     }
   }
 
-  async function createTask(data: { template_id: number; matter_id?: number | null; title?: string }) {
+  async function createTask(data: { template_id: number; title?: string }) {
     const task = await taskInstancesApi.create(data)
     tasks.value.unshift(task)
     return task

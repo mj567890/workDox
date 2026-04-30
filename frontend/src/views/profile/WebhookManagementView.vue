@@ -102,10 +102,9 @@ interface WebhookItem {
 }
 
 const eventTypes = [
-  'matter.created', 'matter.updated', 'matter.completed',
   'document.uploaded', 'document.approved', 'document.rejected',
   'task.assigned', 'task.completed',
-  'node.advanced', 'notification.created',
+  'notification.created',
 ]
 
 const loading = ref(false)

@@ -236,7 +236,6 @@ class TaskInstanceService:
 
         task = ProjectTask(
             template_id=template.id,
-            matter_id=data.get("matter_id"),
             title=data.get("title", template.name),
             status="pending",
             current_stage_order=1,
@@ -273,7 +272,7 @@ class TaskInstanceService:
 
     async def update_task(self, db: AsyncSession, task_id: int, data: dict) -> ProjectTask:
         task = await self.get_task(db, task_id)
-        for key in ("title", "status", "matter_id"):
+        for key in ("title", "status"):
             if key in data:
                 setattr(task, key, data[key])
         await db.commit()

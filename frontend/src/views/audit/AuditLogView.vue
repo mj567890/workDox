@@ -11,7 +11,6 @@
           <el-option label="下载" value="download" />
           <el-option label="删除" value="delete" />
           <el-option label="锁定" value="lock" />
-          <el-option label="创建事项" value="create_matter" />
         </el-select>
         <el-date-picker
           v-model="dateRange"

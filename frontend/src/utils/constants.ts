@@ -10,14 +10,6 @@ export const DOCUMENT_STATUS = {
   conflict: { label: '冲突', color: 'danger' },
 } as const
 
-export const MATTER_STATUS = {
-  pending: { label: '待开始', color: 'info' },
-  in_progress: { label: '进行中', color: '' },
-  paused: { label: '已暂停', color: 'warning' },
-  completed: { label: '已完成', color: 'success' },
-  cancelled: { label: '已取消', color: 'danger' },
-} as const
-
 export const TASK_PRIORITY = {
   low: { label: '低', color: 'info' },
   normal: { label: '普通', color: '' },
@@ -30,14 +22,6 @@ export const TASK_STATUS = {
   in_progress: { label: '处理中', color: '' },
   completed: { label: '已完成', color: 'success' },
   cancelled: { label: '已取消', color: 'danger' },
-} as const
-
-export const NODE_STATUS = {
-  pending: { label: '待处理', color: 'info' },
-  in_progress: { label: '进行中', color: '' },
-  completed: { label: '已完成', color: 'success' },
-  skipped: { label: '已跳过', color: 'warning' },
-  rolled_back: { label: '已退回', color: 'danger' },
 } as const
 
 export const FILE_TYPE_ICONS: Record<string, string> = {

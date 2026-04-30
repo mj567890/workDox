@@ -49,13 +49,6 @@ export function useShortcuts() {
     // If focus is in an input area, skip the following shortcuts
     if (isInput) return
 
-    // Ctrl+N - Navigate to matters page (new matter)
-    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-      e.preventDefault()
-      router.push('/matters')
-      return
-    }
-
     // Ctrl+B - Toggle sidebar collapse
     if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
       e.preventDefault()

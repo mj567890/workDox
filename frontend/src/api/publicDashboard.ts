@@ -1,73 +1,81 @@
 import { getPublic } from './index'
 
 export interface PublicOverview {
-  total_matters: number
-  total_documents: number
-  completed_matters: number
-  in_progress_matters: number
-  overdue_matters: number
+  total_tasks: number
+  active_tasks: number
+  completed_tasks: number
   completion_rate: number
+  pipeline_progress: number
+  overdue_stages: number
+  total_slots: number
+  filled_slots: number
+  total_documents: number
 }
 
-export interface PublicKeyProject {
-  matter_id: number
-  matter_no: string
+export interface ActiveTaskItem {
+  task_id: number
   title: string
+  template_name: string
+  current_stage: string
+  current_stage_order: number
   progress: number
   status: string
-  owner_name: string | null
-  due_date: string | null
-  risk_level: string
+  creator_id: number
+  created_at: string | null
 }
 
-export interface PublicRiskAlert {
-  matter_id: number
-  matter_no: string
+export interface RiskAlertItem {
+  task_id: number
   title: string
   risk_type: string
   risk_level: string
   description: string
+  stage_name: string | null
+  days_stalled: number | null
+  days_overdue: number | null
 }
 
-export interface PublicProgressChart {
-  labels: string[]
-  completed: number[]
-  in_progress: number[]
-  pending: number[]
+export interface StageFunnelItem {
+  stage_order: number
+  count: number
 }
 
-export interface PublicTypeDistribution {
+export interface TemplateDistItem {
   name: string
   count: number
-  percentage: number
 }
 
-export interface PublicMonthlyTrend {
+export interface StatusDistItem {
+  status: string
+  label: string
+  count: number
+}
+
+export interface MonthlyTrendItem {
   month: string
   total: number
   completed: number
-  overdue: number
 }
 
-export interface PublicDepartmentWorkload {
+export interface DeptWorkloadItem {
   department_name: string
-  total_matters: number
-  completed_matters: number
-  overdue_matters: number
-  avg_progress: number
+  total_tasks: number
+  completed_tasks: number
 }
 
-export interface PublicAdvancedAnalytics {
-  departments: PublicDepartmentWorkload[]
-  monthly_trend: PublicMonthlyTrend[]
-  priority_breakdown: { priority: string; count: number }[]
+export interface PublicAnalytics {
+  monthly_trend: MonthlyTrendItem[]
+  template_distribution: TemplateDistItem[]
+  status_distribution: StatusDistItem[]
+  stage_funnel: StageFunnelItem[]
+  departments: DeptWorkloadItem[]
 }
 
 export const publicDashboardApi = {
   getOverview: () => getPublic<PublicOverview>('/public/dashboard/overview'),
-  getKeyProjects: () => getPublic<PublicKeyProject[]>('/public/dashboard/key-projects'),
-  getRisks: () => getPublic<PublicRiskAlert[]>('/public/dashboard/risks'),
-  getProgressChart: () => getPublic<PublicProgressChart>('/public/dashboard/progress-chart'),
-  getTypeDistribution: () => getPublic<PublicTypeDistribution[]>('/public/dashboard/type-distribution'),
-  getAdvancedAnalytics: () => getPublic<PublicAdvancedAnalytics>('/public/dashboard/advanced'),
+  getActiveTasks: () => getPublic<ActiveTaskItem[]>('/public/dashboard/active-tasks'),
+  getRisks: () => getPublic<RiskAlertItem[]>('/public/dashboard/risks'),
+  getStageFunnel: () => getPublic<StageFunnelItem[]>('/public/dashboard/stage-funnel'),
+  getTemplateDistribution: () => getPublic<TemplateDistItem[]>('/public/dashboard/template-distribution'),
+  getAnalytics: () => getPublic<PublicAnalytics>('/public/dashboard/analytics'),
 }

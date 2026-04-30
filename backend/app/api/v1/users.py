@@ -12,7 +12,7 @@ from app.core.pagination import PaginationParams
 from app.models.user import User
 from app.models.role import Role
 from app.models.department import Department
-from app.services.user_service import UserService, RoleService, DepartmentService, DocumentCategoryService, TagService, MatterTypeService
+from app.services.user_service import UserService, RoleService, DepartmentService, DocumentCategoryService, TagService
 
 router = APIRouter()
 user_service = UserService()
@@ -20,7 +20,6 @@ role_service = RoleService()
 department_service = DepartmentService()
 category_service = DocumentCategoryService()
 tag_service = TagService()
-matter_type_service = MatterTypeService()
 
 
 # ---------- Pydantic Schemas ----------
@@ -174,30 +173,6 @@ class TagOut(BaseModel):
     id: int
     name: str
     color: str
-    created_at: str | None
-    updated_at: str | None
-
-    class Config:
-        from_attributes = True
-
-
-class MatterTypeCreate(BaseModel):
-    name: str
-    code: str
-    description: str | None = None
-
-
-class MatterTypeUpdate(BaseModel):
-    name: str | None = None
-    code: str | None = None
-    description: str | None = None
-
-
-class MatterTypeOut(BaseModel):
-    id: int
-    name: str
-    code: str
-    description: str | None
     created_at: str | None
     updated_at: str | None
 
@@ -440,18 +415,6 @@ def _tag_to_out(t: "Tag") -> TagOut:
     )
 
 
-def _matter_type_to_out(mt: "MatterType") -> MatterTypeOut:
-    from app.models.document import MatterType
-    return MatterTypeOut(
-        id=mt.id,
-        name=mt.name,
-        code=mt.code,
-        description=mt.description,
-        created_at=mt.created_at.isoformat() if mt.created_at else None,
-        updated_at=mt.updated_at.isoformat() if mt.updated_at else None,
-    )
-
-
 # ---------- Document Category Routes ----------
 
 @router.get("/document-categories", response_model=list[DocumentCategoryOut])
@@ -560,61 +523,6 @@ async def delete_tag(
     await tag_service.delete_tag(db, tag_id)
     await cache.delete("users:tags")
     return {"detail": "Tag deleted successfully"}
-
-
-# ---------- Matter Type Routes ----------
-
-@router.get("/matter-types", response_model=list[MatterTypeOut])
-async def list_matter_types(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    cached = await cache.get("users:matter_types")
-    if cached:
-        return [MatterTypeOut(**item) for item in cached]
-
-    pagination = PaginationParams(page=1, page_size=500)
-    matter_types, _ = await matter_type_service.get_matter_types(db, pagination)
-    mt_list = [_matter_type_to_out(mt) for mt in matter_types]
-    await cache.set("users:matter_types", [m.model_dump() for m in mt_list], ttl=600)
-    return mt_list
-
-
-@router.post("/matter-types", response_model=MatterTypeOut)
-async def create_matter_type(
-    data: MatterTypeCreate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    _: None = Depends(check_permission(Permission.ADMIN_REFDATA_MANAGE)),
-):
-    matter_type = await matter_type_service.create_matter_type(db, data)
-    await cache.delete("users:matter_types")
-    return _matter_type_to_out(matter_type)
-
-
-@router.put("/matter-types/{type_id}", response_model=MatterTypeOut)
-async def update_matter_type(
-    type_id: int,
-    data: MatterTypeUpdate,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    _: None = Depends(check_permission(Permission.ADMIN_REFDATA_MANAGE)),
-):
-    matter_type = await matter_type_service.update_matter_type(db, type_id, data)
-    await cache.delete("users:matter_types")
-    return _matter_type_to_out(matter_type)
-
-
-@router.delete("/matter-types/{type_id}")
-async def delete_matter_type(
-    type_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    _: None = Depends(check_permission(Permission.ADMIN_REFDATA_MANAGE)),
-):
-    await matter_type_service.delete_matter_type(db, type_id)
-    await cache.delete("users:matter_types")
-    return {"detail": "Matter type deleted successfully"}
 
 
 # ---------- User Detail Routes (/{user_id}) ----------

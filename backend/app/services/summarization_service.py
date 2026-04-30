@@ -1,19 +1,44 @@
-"""AI document summarization service using DeepSeek LLM."""
+"""AI document summarization service."""
 
 import logging
 
-from app.services.llm_service import get_llm_service
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.config import get_settings
+from app.services import llm_service
 
 logger = logging.getLogger(__name__)
 
 
+def _get_provider_from_env() -> dict:
+    """Get provider config from environment variables (no DB dependency)."""
+    settings = get_settings()
+    return {
+        "api_key": settings.DEEPSEEK_API_KEY,
+        "api_base": settings.DEEPSEEK_API_BASE,
+        "model": settings.DEEPSEEK_MODEL,
+        "max_tokens": settings.DEEPSEEK_MAX_TOKENS,
+        "temperature": 0.3,
+    }
+
+
 class SummarizationService:
-    async def summarize(self, text: str, doc_name: str = "") -> str:
+    async def _get_provider(self, db: AsyncSession | None) -> dict:
+        """Get provider from DB if session available, otherwise from env."""
+        if db is not None:
+            try:
+                from app.services.ai_config import get_default_provider
+                return await get_default_provider(db)
+            except Exception:
+                pass
+        return _get_provider_from_env()
+
+    async def summarize(self, text: str, db: AsyncSession | None = None, doc_name: str = "") -> str:
         """Generate an AI summary of document text."""
         if not text or len(text.strip()) < 100:
             return text or ""
 
-        llm = get_llm_service()
+        provider = await self._get_provider(db)
         truncated = text[:8000]  # Keep within token limits
 
         messages = [
@@ -38,13 +63,14 @@ class SummarizationService:
             },
         ]
 
-        summary = await llm.chat(messages, temperature=0.2)
+        result = await llm_service.chat(provider, messages, temperature=0.2)
+        summary = result["content"]
         logger.info("Generated summary for '%s' (%d chars input, %d chars output)",
                      doc_name, len(text), len(summary))
         return summary.strip()
 
     async def summarize_document(
-        self, doc_text: str, doc_name: str = ""
+        self, doc_text: str, db: AsyncSession | None = None, doc_name: str = ""
     ) -> str:
-        """Public interface for document summarization."""
-        return await self.summarize(doc_text, doc_name)
+        """Public interface for document summarization. db is optional (falls back to env vars)."""
+        return await self.summarize(doc_text, db, doc_name)

@@ -57,9 +57,8 @@
               </el-descriptions-item>
               <el-descriptions-item label="当前版本">v{{ doc.current_version_no || 1 }}</el-descriptions-item>
               <el-descriptions-item label="上传者">{{ doc.owner_name }}</el-descriptions-item>
-              <el-descriptions-item label="所属事项">{{ doc.matter_title || '-' }}</el-descriptions-item>
               <el-descriptions-item label="文档分类">{{ doc.category_name || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="共享范围">{{ doc.permission_scope === 'matter' ? '事项内共享' : '全局可见' }}</el-descriptions-item>
+              <el-descriptions-item label="共享范围">{{ doc.permission_scope === 'private' ? '私有' : '全局可见' }}</el-descriptions-item>
               <el-descriptions-item label="标签">
                 <el-tag v-for="tag in doc.tags" :key="tag.id" size="small" :color="tag.color" effect="light" class="mr-4">
                   {{ tag.name }}
@@ -81,7 +80,7 @@
               </el-form-item>
               <el-form-item label="共享范围">
                 <el-select v-model="editForm.permission_scope" style="width:100%">
-                  <el-option label="事项内共享" value="matter" />
+                  <el-option label="私有" value="private" />
                   <el-option label="全局可见" value="global" />
                 </el-select>
               </el-form-item>
@@ -287,7 +286,7 @@ const savingEdit = ref(false)
 const editForm = ref({
   original_name: '',
   category_id: null as number | null,
-  permission_scope: 'matter',
+  permission_scope: 'private',
   tag_ids: [] as number[],
   description: '',
 })
@@ -297,7 +296,7 @@ function startEdit() {
   editForm.value = {
     original_name: doc.value.original_name,
     category_id: doc.value.category_id,
-    permission_scope: doc.value.permission_scope || 'matter',
+    permission_scope: doc.value.permission_scope || 'private',
     tag_ids: (doc.value.tags || []).map(t => t.id),
     description: doc.value.description || '',
   }

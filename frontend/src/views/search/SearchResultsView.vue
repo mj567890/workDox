@@ -11,12 +11,7 @@
       </div>
 
       <div class="search-filters mt-20">
-        <el-radio-group v-model="searchScope" @change="handleSearch">
-          <el-radio-button value="all">全部</el-radio-button>
-          <el-radio-button value="documents">文档</el-radio-button>
-          <el-radio-button value="matters">事项</el-radio-button>
-        </el-radio-group>
-        <el-select v-model="filterFileType" placeholder="文件类型" clearable @change="handleSearch" v-if="searchScope !== 'matters'">
+        <el-select v-model="filterFileType" placeholder="文件类型" clearable @change="handleSearch">
           <el-option label="Word" value="docx" />
           <el-option label="Excel" value="xlsx" />
           <el-option label="PDF" value="pdf" />
@@ -27,7 +22,7 @@
         <div v-if="results.length > 0">
           <div v-for="item in results" :key="`${item.type}-${item.id}`" class="result-item" @click="navigateTo(item)">
             <div class="result-title">
-              <el-tag size="small" :type="item.type === 'document' ? '' : 'success'">{{ item.type === 'document' ? '文档' : '事项' }}</el-tag>
+              <el-tag size="small">文档</el-tag>
               <span class="result-name" v-html="item.highlight || item.title"></span>
             </div>
             <div class="result-desc" v-if="item.description">{{ item.description }}</div>
@@ -59,7 +54,6 @@ const route = useRoute()
 const router = useRouter()
 
 const keyword = ref('')
-const searchScope = ref('all')
 const filterFileType = ref('')
 const loading = ref(false)
 const searched = ref(false)
@@ -75,7 +69,6 @@ async function handleSearch() {
   try {
     const res = await searchApi.search({
       keyword: keyword.value.trim(),
-      scope: searchScope.value,
       file_type: filterFileType.value || undefined,
       page: page.value,
       page_size: pageSize.value,
@@ -88,11 +81,7 @@ async function handleSearch() {
 }
 
 function navigateTo(item: any) {
-  if (item.type === 'document') {
-    router.push(`/documents/${item.id}`)
-  } else if (item.type === 'matter') {
-    router.push(`/matters/${item.id}`)
-  }
+  router.push(`/documents/${item.id}`)
 }
 
 onMounted(() => {

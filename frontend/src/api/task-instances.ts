@@ -35,7 +35,6 @@ export interface BoardData {
 export interface TaskItem {
   id: number
   template_id: number
-  matter_id: number | null
   title: string
   status: string
   current_stage_order: number
@@ -49,7 +48,7 @@ export interface TaskItem {
 export const taskInstancesApi = {
   getList: (status?: string) => get<{ items: TaskItem[]; total: number }>('/task-instances', { status }),
   getDetail: (id: number) => get<TaskItem>(`/task-instances/${id}`),
-  create: (data: { template_id: number; matter_id?: number | null; title?: string }) => post<TaskItem>('/task-instances', data),
+  create: (data: { template_id: number; title?: string }) => post<TaskItem>('/task-instances', data),
   update: (id: number, data: any) => put<TaskItem>(`/task-instances/${id}`, data),
   delete: (id: number) => del(`/task-instances/${id}`),
   advance: (id: number) => put<TaskItem>(`/task-instances/${id}/advance`),

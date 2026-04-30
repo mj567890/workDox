@@ -32,9 +32,7 @@ import { ref, onMounted } from 'vue'
 import { Bell } from '@element-plus/icons-vue'
 import { useNotificationStore } from '@/stores/notifications'
 import { formatDate } from '@/utils/format'
-import { useRouter } from 'vue-router'
 
-const router = useRouter()
 const notificationStore = useNotificationStore()
 const loading = ref(false)
 
@@ -59,9 +57,6 @@ async function markAll() {
 function handleClick(item: any) {
   if (!item.is_read) {
     notificationStore.markAsRead(item.id)
-  }
-  if (item.related_matter_id) {
-    router.push(`/matters/${item.related_matter_id}`)
   }
 }
 

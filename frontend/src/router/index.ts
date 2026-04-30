@@ -42,21 +42,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/documents/DocumentDetailView.vue'),
       },
       {
-        path: 'matters',
-        name: 'MatterList',
-        component: () => import('@/views/matters/MatterListView.vue'),
-      },
-      {
-        path: 'matters/:id',
-        name: 'MatterDetail',
-        component: () => import('@/views/matters/MatterDetailView.vue'),
-      },
-      {
-        path: 'workflow/templates',
-        name: 'WorkflowTemplates',
-        component: () => import('@/views/workflow/WorkflowTemplateListView.vue'),
-      },
-      {
         path: 'task-templates',
         name: 'TaskTemplates',
         component: () => import('@/views/tasks/TaskTemplateListView.vue'),
@@ -67,24 +52,6 @@ const routes: RouteRecordRaw[] = [
         name: 'TaskTemplateEdit',
         component: () => import('@/views/tasks/TaskTemplateEditView.vue'),
         meta: { roles: ['admin', 'dept_leader'] },
-      },
-      {
-        path: 'workflow/templates/new',
-        name: 'WorkflowTemplateNew',
-        component: () => import('@/views/workflow/WorkflowTemplateEditView.vue'),
-        meta: { roles: ['admin', 'dept_leader'] },
-      },
-      {
-        path: 'workflow/templates/:id/edit',
-        name: 'WorkflowTemplateEdit',
-        component: () => import('@/views/workflow/WorkflowTemplateEditView.vue'),
-        meta: { roles: ['admin', 'dept_leader'] },
-      },
-      {
-        path: 'tasks',
-        name: 'TaskCenter',
-        component: () => import('@/views/tasks/TaskCenterView.vue'),
-        meta: { title: '待办任务' },
       },
       {
         path: 'task-mgmt',
@@ -135,9 +102,9 @@ const routes: RouteRecordRaw[] = [
         meta: { roles: ['admin'] },
       },
       {
-        path: 'admin/matter-types',
-        name: 'MatterTypeManagement',
-        component: () => import('@/views/admin/MatterTypeManagementView.vue'),
+        path: 'admin/ai-config',
+        name: 'AIConfig',
+        component: () => import('@/views/admin/AIConfigView.vue'),
         meta: { roles: ['admin'] },
       },
       {

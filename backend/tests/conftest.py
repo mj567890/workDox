@@ -66,12 +66,10 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
     import app.models.base  # noqa: F401
     import app.models.department  # noqa: F401
     import app.models.document  # noqa: F401
-    import app.models.matter  # noqa: F401
     import app.models.role  # noqa: F401
-    import app.models.task  # noqa: F401
-    import app.models.user  # noqa: F401
+    import app.models.notification  # noqa: F401
+    import app.models.operation_log  # noqa: F401    import app.models.user  # noqa: F401
     import app.models.webhook  # noqa: F401
-    import app.models.workflow  # noqa: F401
     from app.models.base import Base
 
     engine = create_async_engine(TEST_DB_URL, echo=False)

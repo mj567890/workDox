@@ -8,15 +8,13 @@
 import { computed } from 'vue'
 import {
   DOCUMENT_STATUS,
-  MATTER_STATUS,
   TASK_PRIORITY,
   TASK_STATUS,
-  NODE_STATUS,
 } from '@/utils/constants'
 
 const props = withDefaults(defineProps<{
   status: string
-  type?: 'document' | 'matter' | 'task' | 'task_priority' | 'node'
+  type?: 'document' | 'task' | 'task_priority'
   size?: '' | 'small' | 'default'
   effect?: '' | 'dark' | 'light' | 'plain'
 }>(), {
@@ -26,10 +24,8 @@ const props = withDefaults(defineProps<{
 
 const statusMap: Record<string, Record<string, { label: string; color: string }>> = {
   document: DOCUMENT_STATUS,
-  matter: MATTER_STATUS,
   task: TASK_STATUS,
   task_priority: TASK_PRIORITY,
-  node: NODE_STATUS,
 }
 
 const config = computed(() => {

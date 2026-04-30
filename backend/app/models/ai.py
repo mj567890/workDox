@@ -16,7 +16,7 @@ class DocumentChunk(Base, TimestampMixin):
     )
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
-    embedding = mapped_column(Vector(768), nullable=True)
+    embedding = mapped_column(Vector(512), nullable=True)
     token_count: Mapped[int] = mapped_column(Integer, default=0)
 
     document = relationship("Document", back_populates="chunks")

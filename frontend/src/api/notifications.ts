@@ -8,8 +8,6 @@ export interface NotificationItem {
   title: string
   content: string | null
   is_read: boolean
-  related_matter_id: number | null
-  related_matter_title: string | null
   created_at: string
 }
 

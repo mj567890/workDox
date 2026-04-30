@@ -22,14 +22,6 @@
         <el-icon><Folder /></el-icon>
         <span>文档中心</span>
       </el-menu-item>
-      <el-menu-item index="/matters">
-        <el-icon><Briefcase /></el-icon>
-        <span>业务事项</span>
-      </el-menu-item>
-      <el-menu-item index="/tasks">
-        <el-icon><List /></el-icon>
-        <span>待办中心</span>
-      </el-menu-item>
       <el-menu-item index="/task-mgmt">
         <el-icon><Finished /></el-icon>
         <span>任务管理</span>
@@ -37,10 +29,6 @@
       <el-menu-item index="/task-templates" v-if="isDeptLeader || isAdmin">
         <el-icon><Setting /></el-icon>
         <span>任务模板</span>
-      </el-menu-item>
-      <el-menu-item index="/workflow/templates" v-if="isDeptLeader || isAdmin">
-        <el-icon><Connection /></el-icon>
-        <span>流程模板</span>
       </el-menu-item>
       <div class="menu-separator" v-if="isAdmin"></div>
       <el-sub-menu index="admin" v-if="isAdmin">
@@ -53,7 +41,7 @@
         <el-menu-item index="/admin/departments">部门管理</el-menu-item>
         <el-menu-item index="/admin/document-categories">文档分类</el-menu-item>
         <el-menu-item index="/admin/tags">标签管理</el-menu-item>
-        <el-menu-item index="/admin/matter-types">事项类型</el-menu-item>
+        <el-menu-item index="/admin/ai-config">AI 配置</el-menu-item>
       </el-sub-menu>
       <el-menu-item index="/audit" v-if="canViewAuditLogs">
         <el-icon><Document /></el-icon>
@@ -81,9 +69,7 @@ const authStore = useAuthStore()
 const activeMenu = computed(() => {
   const path = route.path
   if (path.startsWith('/admin')) return path
-  if (path.startsWith('/matters')) return '/matters'
   if (path.startsWith('/documents')) return '/documents'
-  if (path.startsWith('/workflow')) return '/workflow/templates'
   if (path.startsWith('/task-templates')) return '/task-templates'
   if (path.startsWith('/task-mgmt')) return '/task-mgmt'
   return path

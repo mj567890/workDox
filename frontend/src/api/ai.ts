@@ -4,6 +4,7 @@ export interface ChatRequest {
   query: string
   document_ids?: number[]
   conversation_id?: number
+  provider_id?: number
 }
 
 export interface ChatResponse {
@@ -42,7 +43,15 @@ export interface Message {
   created_at: string
 }
 
+export interface ProviderOption {
+  id: number
+  name: string
+  provider_type: string
+  model: string
+}
+
 export const aiApi = {
+  getProviders: () => get<ProviderOption[]>('/ai/providers'),
   chat: (data: ChatRequest) => post<ChatResponse>('/ai/chat', data),
   summarize: (documentId: number) =>
     post<SummarizeResponse>('/ai/summarize', { document_id: documentId }),
