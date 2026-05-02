@@ -6,7 +6,7 @@ from app.models.user import User
 from app.models.role import Role
 from app.models.department import Department
 from app.models.document import DocumentCategory, Tag, Document
-from app.models.matter import Matter
+
 from app.core.security import hash_password, verify_password
 from app.core.pagination import PaginationParams
 from app.core.exceptions import (
@@ -693,13 +693,8 @@ class MatterTypeService:
     async def delete_matter_type(self, db: AsyncSession, type_id: int) -> bool:
         matter_type = await self.get_matter_type(db, type_id)
 
-        matters_result = await db.execute(
-            select(Matter).where(Matter.type_id == type_id)
-        )
-        if matters_result.scalars().first():
-            raise ConflictException(
-                detail="Cannot delete matter type with assigned matters"
-            )
+        # Note: Matter table was removed (migration remove_legacy_matter_workflow).
+        # Matter type deletion now proceeds without checking related matters.
 
         await db.delete(matter_type)
         await db.commit()

@@ -1,400 +1,321 @@
-from typing import Optional, Sequence
+"""Dashboard service — uses ProjectTask / TaskTemplate / ProjectStage (no Matter dependency)."""
+
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.matter import Matter
+from app.models.task_manager import (
+    TaskTemplate, ProjectTask, ProjectStage, ProjectSlot,
+)
 from app.models.document import Document
-from app.models.task import Task
-from app.models.workflow import WorkflowNode
 
 
 class DashboardService:
 
-    def _matter_filter(self, matter_ids: Optional[Sequence[int]]):
-        """Return a WHERE clause for matter_ids.
+    # ── Overview ──────────────────────────────────────────────────
 
-        None  = no filter (admin sees all)
-        []   = user has access to zero matters -> use impossible condition
-        [...] = filter to these IDs
-        """
-        if matter_ids is None:
-            return True
-        if not matter_ids:
-            return False
-        return Matter.id.in_(matter_ids)
-
-    # ------------------------------------------------------------------
-    async def get_overview(
-        self, db: AsyncSession, matter_ids: Optional[Sequence[int]] = None
-    ) -> dict:
-        mf = self._matter_filter(matter_ids)
-
-        total_matters = (
-            await db.execute(select(func.count(Matter.id)).where(mf))
-        ).scalar() or 0
-
-        in_progress = (
-            await db.execute(
-                select(func.count(Matter.id)).where(
-                    and_(Matter.status == "in_progress", mf)
-                )
-            )
-        ).scalar() or 0
-
-        completed = (
-            await db.execute(
-                select(func.count(Matter.id)).where(
-                    and_(Matter.status == "completed", mf)
-                )
-            )
-        ).scalar() or 0
-
+    async def get_overview(self, db: AsyncSession) -> dict:
         now = datetime.now(timezone.utc)
-        overdue = (
-            await db.execute(
-                select(func.count(Matter.id)).where(
-                    and_(
-                        Matter.status.in_(["pending", "in_progress"]),
-                        Matter.due_date < now,
-                        mf,
-                    )
+
+        total_tasks = (await db.execute(select(func.count(ProjectTask.id)))).scalar() or 0
+        active_tasks = (await db.execute(
+            select(func.count(ProjectTask.id)).where(ProjectTask.status == "in_progress")
+        )).scalar() or 0
+        completed_tasks = (await db.execute(
+            select(func.count(ProjectTask.id)).where(ProjectTask.status == "completed")
+        )).scalar() or 0
+
+        completion_rate = (completed_tasks / total_tasks) if total_tasks > 0 else 0.0
+
+        # pipeline_progress — proportion of stages in active/in_progress state
+        total_stages = (await db.execute(select(func.count(ProjectStage.id)))).scalar() or 0
+        completed_stages = (await db.execute(
+            select(func.count(ProjectStage.id)).where(ProjectStage.status == "completed")
+        )).scalar() or 0
+        pipeline_progress = (completed_stages / total_stages) if total_stages > 0 else 0.0
+
+        # overdue stages — stages whose task is not "completed" and stage status is not "completed"
+        overdue_stages = (await db.execute(
+            select(func.count(ProjectStage.id))
+            .join(ProjectTask, ProjectStage.task_id == ProjectTask.id)
+            .where(
+                and_(
+                    ProjectTask.status != "completed",
+                    ProjectStage.status.in_(["active", "overdue"]),
                 )
             )
-        ).scalar() or 0
+        )).scalar() or 0
 
-        completion_rate = round(
-            completed / total_matters if total_matters > 0 else 0.0, 2
-        )
+        total_slots = (await db.execute(select(func.count(ProjectSlot.id)))).scalar() or 0
+        filled_slots = (await db.execute(
+            select(func.count(ProjectSlot.id)).where(ProjectSlot.status == "completed")
+        )).scalar() or 0
 
-        total_documents = (
-            await db.execute(
-                select(func.count(Document.id)).where(
-                    and_(Document.is_deleted == False, mf if mf is not True else True)
-                )
-            )
-        ).scalar() or 0
-
-        # near-deadline (within 3 days)
-        near_deadline = (
-            await db.execute(
-                select(func.count(Matter.id)).where(
-                    and_(
-                        Matter.status.in_(["pending", "in_progress"]),
-                        Matter.due_date.between(
-                            now, now + timedelta(days=3)
-                        ),
-                        mf,
-                    )
-                )
-            )
-        ).scalar() or 0
-
-        risk_count = overdue + near_deadline
+        total_documents = (await db.execute(
+            select(func.count(Document.id))
+        )).scalar() or 0
 
         return {
-            "total_matters": total_matters,
+            "total_tasks": total_tasks,
+            "active_tasks": active_tasks,
+            "completed_tasks": completed_tasks,
+            "completion_rate": round(completion_rate, 4),
+            "pipeline_progress": round(pipeline_progress, 4),
+            "overdue_stages": overdue_stages,
+            "total_slots": total_slots,
+            "filled_slots": filled_slots,
             "total_documents": total_documents,
-            "pending_tasks": 0,  # caller fills in per-user task count
-            "completed_matters": completed,
-            "in_progress_matters": in_progress,
-            "overdue_matters": overdue,
-            "completion_rate": completion_rate,
-            "risk_count": risk_count,
         }
 
-    # ------------------------------------------------------------------
-    async def get_key_projects(
-        self, db: AsyncSession, matter_ids: Optional[Sequence[int]] = None
-    ) -> list[dict]:
-        mf = self._matter_filter(matter_ids)
-        result = await db.execute(
-            select(Matter)
-            .options(selectinload(Matter.owner))
-            .where(mf)
-            .order_by(Matter.progress.asc(), Matter.due_date.asc())
+    # ── Key Projects (active tasks) ──────────────────────────────
+
+    async def get_active_tasks(self, db: AsyncSession) -> list[dict]:
+        stmt = (
+            select(ProjectTask)
+            .options(selectinload(ProjectTask.template))
+            .where(ProjectTask.status.in_(["pending", "in_progress"]))
+            .order_by(ProjectTask.created_at.desc())
             .limit(20)
         )
-        matters = result.scalars().all()
+        result = await db.execute(stmt)
+        tasks = result.scalars().all()
 
-        now = datetime.now(timezone.utc)
-        projects = []
-        for m in matters:
-            risk_level = "low"
-            if m.due_date and m.due_date < now and m.status not in (
-                "completed",
-                "cancelled",
-            ):
-                risk_level = "high"
-            elif (
-                m.due_date
-                and m.due_date < now + timedelta(days=3)
-                and m.status not in ("completed", "cancelled")
-            ):
-                risk_level = "medium"
-
-            current_node_name = None
-            if m.current_node_id:
-                node_result = await db.execute(
-                    select(WorkflowNode.node_name).where(
-                        WorkflowNode.id == m.current_node_id
-                    )
-                )
-                current_node_name = node_result.scalar_one_or_none()
-
-            projects.append(
-                {
-                    "matter_id": m.id,
-                    "matter_no": m.matter_no,
-                    "title": m.title,
-                    "progress": m.progress,
-                    "status": m.status,
-                    "current_node": current_node_name,
-                    "owner_name": m.owner.real_name if m.owner else None,
-                    "due_date": m.due_date.isoformat() if m.due_date else None,
-                    "risk_level": risk_level,
-                }
-            )
-        return projects
-
-    # ------------------------------------------------------------------
-    async def get_risk_alerts(
-        self, db: AsyncSession, matter_ids: Optional[Sequence[int]] = None
-    ) -> list[dict]:
-        mf = self._matter_filter(matter_ids)
-        now = datetime.now(timezone.utc)
-        near_deadline = now + timedelta(days=3)
-        alerts = []
-
-        # Overdue
-        overdue_result = await db.execute(
-            select(Matter).options(selectinload(Matter.owner)).where(
-                and_(
-                    Matter.status.in_(["pending", "in_progress"]),
-                    Matter.due_date < now,
-                    mf,
-                )
-            ).order_by(Matter.due_date)
-        )
-        for m in overdue_result.scalars().all():
-            days_overdue = 0
-            if m.due_date:
-                days_overdue = max((now - m.due_date).days, 0)
-            risk_level = "high" if days_overdue > 7 else "medium"
-            alerts.append(
-                {
-                    "matter_id": m.id,
-                    "matter_no": m.matter_no,
-                    "title": m.title,
-                    "risk_type": "overdue",
-                    "risk_level": risk_level,
-                    "description": f"已逾期 {days_overdue} 天"
-                    if days_overdue > 0
-                    else "即将逾期",
-                    "days_overdue": days_overdue if days_overdue > 0 else None,
-                }
-            )
-
-        # Near deadline
-        near_result = await db.execute(
-            select(Matter).options(selectinload(Matter.owner)).where(
-                and_(
-                    Matter.status.in_(["pending", "in_progress"]),
-                    Matter.due_date >= now,
-                    Matter.due_date <= near_deadline,
-                    mf,
-                )
-            ).order_by(Matter.due_date)
-        )
-        for m in near_result.scalars().all():
-            days_remaining = 0
-            if m.due_date:
-                days_remaining = (m.due_date - now).days
-            risk_level = "high" if days_remaining <= 1 else "medium"
-            alerts.append(
-                {
-                    "matter_id": m.id,
-                    "matter_no": m.matter_no,
-                    "title": m.title,
-                    "risk_type": "near_deadline",
-                    "risk_level": risk_level,
-                    "description": f"距截止日期仅剩 {days_remaining} 天",
-                    "days_overdue": None,
-                }
-            )
-
-        return alerts
-
-    # ------------------------------------------------------------------
-    async def get_progress_chart(
-        self, db: AsyncSession, matter_ids: Optional[Sequence[int]] = None
-    ) -> dict:
-        mf = self._matter_filter(matter_ids)
-        now = datetime.now(timezone.utc)
-
-        labels = []
-        completed = []
-        in_progress = []
-        pending = []
-
-        for i in range(5, -1, -1):
-            period_start = now.replace(
-                year=now.year, month=now.month, day=1
-            ) - timedelta(days=i * 30)
-            period_start = period_start.replace(day=1)
-            period_label = period_start.strftime("%Y-%m")
-
-            month_start = period_start
-            if i == 0:
-                month_end = now + timedelta(days=1)
-            else:
-                next_month = month_start.month + 1
-                next_year = month_start.year
-                if next_month > 12:
-                    next_month = 1
-                    next_year += 1
-                month_end = month_start.replace(
-                    year=next_year, month=next_month, day=1
-                )
-
-            query = select(
-                func.count(Matter.id).filter(Matter.status == "completed"),
-                func.count(Matter.id).filter(Matter.status == "in_progress"),
-                func.count(Matter.id).filter(Matter.status == "pending"),
-            ).where(and_(Matter.created_at < month_end, mf))
-
-            row = (await db.execute(query)).one()
-            labels.append(period_label)
-            completed.append(row[0] or 0)
-            in_progress.append(row[1] or 0)
-            pending.append(row[2] or 0)
-
-        return {
-            "labels": labels,
-            "completed": completed,
-            "in_progress": in_progress,
-            "pending": pending,
-        }
-
-    # ------------------------------------------------------------------
-    async def get_type_distribution(
-        self, db: AsyncSession, matter_ids: Optional[Sequence[int]] = None
-    ) -> list[dict]:
-        from app.models.document import MatterType
-
-        mf = self._matter_filter(matter_ids)
-        result = await db.execute(
-            select(MatterType.name, func.count(Matter.id))
-            .outerjoin(Matter, and_(Matter.type_id == MatterType.id, mf))
-            .group_by(MatterType.id, MatterType.name)
-        )
-        distribution = []
-        for name, count in result.all():
-            distribution.append({"name": name, "count": count or 0, "percentage": 0.0})
-
-        total = sum(d["count"] for d in distribution) or 1
-        for d in distribution:
-            d["percentage"] = round(d["count"] / total * 100, 1)
-
-        return distribution
-
-    # ------------------------------------------------------------------
-    async def get_personal_stats(
-        self, db: AsyncSession, user_id: int
-    ) -> dict:
-        """Personal task statistics for the current user."""
-        now = datetime.now(timezone.utc)
-
-        # Week start (Monday)
-        weekday = now.weekday()
-        week_start = (now - timedelta(days=weekday)).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-
-        # Week completed tasks
-        week_completed = (
-            await db.execute(
-                select(func.count(Task.id)).where(
-                    Task.assignee_id == user_id,
-                    Task.status == "completed",
-                    Task.updated_at >= week_start,
-                )
-            )
-        ).scalar() or 0
-
-        # Week total tasks
-        week_total = (
-            await db.execute(
-                select(func.count(Task.id)).where(
-                    Task.assignee_id == user_id,
-                    Task.created_at >= week_start,
-                )
-            )
-        ).scalar() or 0
-
-        # Overdue rate
-        overdue_count = (
-            await db.execute(
-                select(func.count(Task.id)).where(
-                    Task.assignee_id == user_id,
-                    Task.status.in_(["pending", "in_progress"]),
-                    Task.due_time < now,
-                    Task.due_time.isnot(None),
-                )
-            )
-        ).scalar() or 0
-        pending_total = (
-            await db.execute(
-                select(func.count(Task.id)).where(
-                    Task.assignee_id == user_id,
-                    Task.status.in_(["pending", "in_progress"]),
-                )
-            )
-        ).scalar() or 1
-        overdue_rate = round(overdue_count / pending_total, 2)
-
-        # Priority distribution
-        priority_result = await db.execute(
-            select(Task.priority, func.count(Task.id))
-            .where(
-                Task.assignee_id == user_id,
-                Task.status.in_(["pending", "in_progress"]),
-            )
-            .group_by(Task.priority)
-        )
-        priority_dist = [
-            {"priority": row[0], "count": row[1]}
-            for row in priority_result.all()
+        return [
+            {
+                "task_id": t.id,
+                "title": t.title,
+                "template_name": t.template.name if t.template else "",
+                "current_stage": self._current_stage_name(t),
+                "current_stage_order": t.current_stage_order or 1,
+                "progress": self._calc_progress(t),
+                "status": t.status or "pending",
+                "creator_id": t.creator_id,
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+            }
+            for t in tasks
         ]
 
-        # Streak: consecutive days (past 30) with at least one completed task
-        streak = 0
-        for i in range(30):
-            day = now - timedelta(days=i)
-            day_start = day.replace(hour=0, minute=0, second=0, microsecond=0)
-            day_end = day_start + timedelta(days=1)
-            day_count = (
-                await db.execute(
-                    select(func.count(Task.id)).where(
-                        Task.assignee_id == user_id,
-                        Task.status == "completed",
-                        Task.updated_at >= day_start,
-                        Task.updated_at < day_end,
+    # ── Risk Alerts ──────────────────────────────────────────────
+
+    async def get_risk_alerts(self, db: AsyncSession) -> list[dict]:
+        stmt = (
+            select(ProjectStage)
+            .options(
+                selectinload(ProjectStage.project_task).selectinload(ProjectTask.template)
+            )
+            .where(
+                and_(
+                    ProjectStage.status.in_(["active", "overdue"]),
+                    ProjectStage.project_task.has(ProjectTask.status != "completed"),
+                )
+            )
+            .order_by(ProjectStage.order)
+            .limit(15)
+        )
+        result = await db.execute(stmt)
+        stages = result.scalars().all()
+
+        alerts = []
+        for s in stages:
+            risk_type = "overdue" if s.status == "overdue" else "stalled"
+            risk_level = "high" if s.status == "overdue" else "medium"
+            alerts.append({
+                "task_id": s.task_id,
+                "title": s.project_task.title if s.project_task else "",
+                "risk_type": risk_type,
+                "risk_level": risk_level,
+                "description": f"阶段「{s.name}」状态异常：{s.status}",
+                "stage_name": s.name,
+            })
+        return alerts
+
+    # ── Charts ───────────────────────────────────────────────────
+
+    async def get_stage_funnel(self, db: AsyncSession) -> list[dict]:
+        stmt = (
+            select(ProjectStage.order, func.count(ProjectStage.id))
+            .group_by(ProjectStage.order)
+            .order_by(ProjectStage.order)
+        )
+        result = await db.execute(stmt)
+        rows = result.all()
+        return [{"stage_order": row[0] or 0, "count": row[1]} for row in rows]
+
+    async def get_monthly_trend(self, db: AsyncSession) -> list[dict]:
+        # Last 6 months trend
+        months = []
+        now = datetime.now(timezone.utc)
+        for i in range(5, -1, -1):
+            d = now.replace(day=1) - timedelta(days=1)
+            d = d.replace(day=1)
+            if i < 5:
+                d = now.replace(day=1) - timedelta(days=i * 30)
+                d = d.replace(day=1)
+            else:
+                # First month in range
+                d = now.replace(day=1) - timedelta(days=5 * 30)
+                d = d.replace(day=1)
+            month_start = d
+            if d.month == 12:
+                month_end = d.replace(year=d.year + 1, month=1, day=1)
+            else:
+                month_end = d.replace(month=d.month + 1, day=1)
+            month_label = d.strftime("%Y-%m")
+
+            total = (await db.execute(
+                select(func.count(ProjectTask.id)).where(
+                    and_(
+                        ProjectTask.created_at >= month_start,
+                        ProjectTask.created_at < month_end,
                     )
                 )
-            ).scalar() or 0
-            if day_count > 0:
-                streak += 1
-            else:
-                break
+            )).scalar() or 0
+            completed = (await db.execute(
+                select(func.count(ProjectTask.id)).where(
+                    and_(
+                        ProjectTask.status == "completed",
+                        ProjectTask.updated_at >= month_start,
+                        ProjectTask.updated_at < month_end,
+                    )
+                )
+            )).scalar() or 0
+            months.append({"month": month_label, "total": total, "completed": completed})
+        return months
+
+    async def get_template_distribution(self, db: AsyncSession) -> list[dict]:
+        stmt = (
+            select(TaskTemplate.name, func.count(ProjectTask.id))
+            .outerjoin(ProjectTask, ProjectTask.template_id == TaskTemplate.id)
+            .group_by(TaskTemplate.name)
+            .order_by(func.count(ProjectTask.id).desc())
+        )
+        result = await db.execute(stmt)
+        rows = result.all()
+        return [{"name": row[0] or "未分类", "count": row[1]} for row in rows]
+
+    async def get_status_distribution(self, db: AsyncSession) -> list[dict]:
+        status_labels = {
+            "pending": "待开始",
+            "in_progress": "进行中",
+            "completed": "已完成",
+            "cancelled": "已取消",
+        }
+        stmt = (
+            select(ProjectTask.status, func.count(ProjectTask.id))
+            .group_by(ProjectTask.status)
+        )
+        result = await db.execute(stmt)
+        rows = result.all()
+        return [
+            {"status": row[0] or "unknown", "label": status_labels.get(row[0], row[0] or "未知"), "count": row[1]}
+            for row in rows
+        ]
+
+    async def get_department_workload(self, db: AsyncSession) -> list[dict]:
+        from app.models.user import User
+        from app.models.department import Department
+
+        stmt = (
+            select(
+                Department.name,
+                func.count(ProjectTask.id).label("total"),
+                func.count(func.nullif(ProjectTask.status == "completed", False)).label("completed_tasks"),
+            )
+            .select_from(Department)
+            .outerjoin(User, User.department_id == Department.id)
+            .outerjoin(ProjectTask, ProjectTask.creator_id == User.id)
+            .group_by(Department.name)
+            .order_by(func.count(ProjectTask.id).desc())
+        )
+        result = await db.execute(stmt)
+        rows = result.all()
+        return [
+            {"department_name": row[0] or "未分配", "total_tasks": row[1] or 0, "completed_tasks": row[2] or 0}
+            for row in rows
+        ]
+
+    # ── Personal Stats ───────────────────────────────────────────
+
+    async def get_personal_stats(self, db: AsyncSession, user_id: int) -> dict:
+        now = datetime.now(timezone.utc)
+        week_start = now - timedelta(days=now.weekday())
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        total_tasks = (await db.execute(
+            select(func.count(ProjectTask.id)).where(ProjectTask.creator_id == user_id)
+        )).scalar() or 0
+
+        week_total = (await db.execute(
+            select(func.count(ProjectTask.id)).where(
+                and_(
+                    ProjectTask.creator_id == user_id,
+                    ProjectTask.updated_at >= week_start,
+                )
+            )
+        )).scalar() or 0
+
+        week_completed = (await db.execute(
+            select(func.count(ProjectTask.id)).where(
+                and_(
+                    ProjectTask.creator_id == user_id,
+                    ProjectTask.status == "completed",
+                    ProjectTask.updated_at >= week_start,
+                )
+            )
+        )).scalar() or 0
+
+        overdue_rate = 0.0  # simplified
+        avg_completion_days = 0.0  # simplified
+        streak_days = 0  # simplified
+
+        status_dist = await self._get_user_status_distribution(db, user_id)
 
         return {
             "week_completed_tasks": week_completed,
             "week_total_tasks": week_total,
             "overdue_rate": overdue_rate,
-            "avg_completion_days": 0.0,  # simplified
-            "streak_days": streak,
-            "priority_distribution": priority_dist,
+            "avg_completion_days": avg_completion_days,
+            "streak_days": streak_days,
+            "total_tasks": total_tasks,
+            "status_distribution": status_dist,
         }
+
+    async def _get_user_status_distribution(self, db: AsyncSession, user_id: int) -> list[dict]:
+        status_labels = {
+            "pending": "待开始",
+            "in_progress": "进行中",
+            "completed": "已完成",
+            "cancelled": "已取消",
+        }
+        stmt = (
+            select(ProjectTask.status, func.count(ProjectTask.id))
+            .where(ProjectTask.creator_id == user_id)
+            .group_by(ProjectTask.status)
+        )
+        result = await db.execute(stmt)
+        rows = result.all()
+        return [
+            {"status": row[0] or "unknown", "label": status_labels.get(row[0], row[0] or "未知"), "count": row[1]}
+            for row in rows
+        ]
+
+    # ── Helpers ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _current_stage_name(task: ProjectTask) -> str:
+        if task.stages:
+            for s in task.stages:
+                if s.order == task.current_stage_order:
+                    return s.name
+            # Fallback: return the last stage name
+            return task.stages[-1].name if task.stages else ""
+        return ""
+
+    @staticmethod
+    def _calc_progress(task: ProjectTask) -> float:
+        if not task.stages:
+            return 0.0
+        completed = sum(1 for s in task.stages if s.status == "completed")
+        return round(completed / len(task.stages) * 100, 1)

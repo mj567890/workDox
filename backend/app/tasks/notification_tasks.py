@@ -26,7 +26,7 @@ def send_notification(
     """
     Create a notification record for a user.
     """
-    from app.models.task import Notification
+    from app.models.notification import Notification
 
     db = next(get_sync_db())
     try:

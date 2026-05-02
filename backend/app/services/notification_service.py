@@ -1,7 +1,7 @@
 from sqlalchemy import select, func, and_, desc, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.task import Notification
+from app.models.notification import Notification
 from app.core.pagination import PaginationParams
 from app.core.exceptions import NotFoundException, ForbiddenException
 
