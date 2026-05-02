@@ -3,6 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.config import get_settings
+
+# Pre-load all models to resolve cross-file relationships
+import app.models  # noqa: F401
+
 from app.api.v1.router import api_router
 from app.core.ws_manager import ws_manager
 

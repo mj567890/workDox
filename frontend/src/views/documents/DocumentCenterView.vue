@@ -242,6 +242,8 @@ onMounted(async () => {
   loading.value = false
   mattersApi.getList({ page_size: 100 }).then(res => {
     uploadMatterList.value = res.items
+  }).catch(() => {
+    // matters API not available, dropdown will be empty
   })
 })
 </script>

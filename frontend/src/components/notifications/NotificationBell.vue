@@ -60,9 +60,6 @@ function handleClick(item: any) {
   if (!item.is_read) {
     notificationStore.markAsRead(item.id)
   }
-  if (item.related_matter_id) {
-    router.push(`/matters/${item.related_matter_id}`)
-  }
 }
 
 onMounted(() => {

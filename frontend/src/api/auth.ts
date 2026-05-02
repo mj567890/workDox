@@ -33,4 +33,5 @@ export const authApi = {
   getMe: () => get<UserInfo>('/auth/me'),
   getProviders: () => get<ProvidersResponse>('/auth/providers'),
   getOAuth2AuthorizeUrl: () => '/api/v1/auth/oauth2/authorize',
+  getCasAuthorizeUrl: () => '/api/v1/auth/sso/cas/authorize',
 }

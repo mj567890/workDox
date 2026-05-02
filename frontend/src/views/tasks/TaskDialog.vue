@@ -143,6 +143,8 @@ async function loadOptions() {
   if (matters.value.length === 0) {
     mattersApi.getList({ page_size: 500 }).then((res) => {
       matters.value = res.items
+    }).catch(() => {
+      // matters API not available
     })
   }
   if (users.value.length === 0) {

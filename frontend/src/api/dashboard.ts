@@ -2,49 +2,46 @@ import { get } from './index'
 import type { PaginatedResponse } from './documents'
 
 export interface DashboardOverview {
-  total_matters: number
-  in_progress_matters: number
-  overdue_matters: number
-  completed_matters: number
+  total_tasks: number
+  active_tasks: number
+  completed_tasks: number
   completion_rate: number
+  pipeline_progress: number
+  overdue_stages: number
+  total_slots: number
+  filled_slots: number
   total_documents: number
-  pending_tasks: number
-  risk_count: number
 }
 
 export interface KeyProjectItem {
-  matter_id: number
-  matter_no: string
+  task_id: number
   title: string
-  owner_name: string
+  template_name: string
+  current_stage: string
+  current_stage_order: number
   progress: number
   status: string
-  current_node: string | null
-  due_date: string | null
-  risk_level: string
+  creator_id: number
+  created_at: string | null
 }
 
 export interface RiskAlertItem {
-  matter_id: number
-  matter_no: string
+  task_id: number
   title: string
   risk_type: string
   risk_level: string
   description: string
-  days_overdue: number | null
+  stage_name: string
 }
 
 export interface ProgressChartData {
-  labels: string[]
-  completed: number[]
-  in_progress: number[]
-  pending: number[]
+  funnel: { stage_order: number; count: number }[]
+  trend: { month: string; total: number; completed: number }[]
 }
 
 export interface TypeDistributionData {
   name: string
   count: number
-  percentage: number
 }
 
 export interface PersonalStats {
@@ -53,29 +50,27 @@ export interface PersonalStats {
   overdue_rate: number
   avg_completion_days: number
   streak_days: number
-  priority_distribution: { priority: string; count: number }[]
+  total_tasks: number
+  status_distribution: { status: string; label: string; count: number }[]
 }
 
 export interface DepartmentWorkload {
   department_name: string
-  total_matters: number
-  completed_matters: number
-  overdue_matters: number
-  avg_progress: number
-  workload_score: number
+  total_tasks: number
+  completed_tasks: number
 }
 
 export interface MonthlyTrend {
   month: string
   total: number
   completed: number
-  overdue: number
 }
 
 export interface AdvancedAnalytics {
-  departments: DepartmentWorkload[]
   monthly_trend: MonthlyTrend[]
-  priority_breakdown: { priority: string; count: number }[]
+  department_workload: DepartmentWorkload[]
+  template_distribution: TypeDistributionData[]
+  status_distribution: { status: string; label: string; count: number }[]
 }
 
 export const dashboardApi = {

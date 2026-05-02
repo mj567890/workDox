@@ -87,9 +87,9 @@ class RAGService:
         # Store full-document embedding (first 2000 chars)
         full_text = extracted_text[:2000]
         full_embedding = await emb_service.embed_single(full_text)
+        from sqlalchemy import update
         await db.execute(
-            text("UPDATE document SET embedding = :emb WHERE id = :did"),
-            {"emb": full_embedding, "did": doc_id},
+            update(Document).where(Document.id == doc_id).values(embedding=full_embedding)
         )
 
         await db.commit()

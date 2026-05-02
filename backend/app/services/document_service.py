@@ -11,9 +11,7 @@ from app.models.document import (
     Tag,
     DocumentEditLock,
     DocumentReview,
-    CrossMatterReference,
 )
-from app.models.matter import Matter, MatterMember
 from app.core.pagination import PaginationParams
 from app.core.exceptions import (
     NotFoundException,
@@ -39,19 +37,6 @@ class DocumentService:
         user_id = current_user.get("id")
         user_roles: list[str] = current_user.get("roles", [])
 
-        if filters.get("matter_id"):
-            if "admin" not in user_roles:
-                member_result = await db.execute(
-                    select(MatterMember).where(
-                        MatterMember.matter_id == filters["matter_id"],
-                        MatterMember.user_id == user_id,
-                    )
-                )
-                if not member_result.scalars().first():
-                    raise ForbiddenException(
-                        detail="You are not a member of this matter"
-                    )
-            conditions.append(Document.matter_id == filters["matter_id"])
         if filters.get("category_id"):
             conditions.append(Document.category_id == filters["category_id"])
         if filters.get("tag_id"):
@@ -117,8 +102,6 @@ class DocumentService:
                 selectinload(Document.versions),
                 selectinload(Document.edit_lock),
                 selectinload(Document.reviews).selectinload(DocumentReview.reviewer),
-                selectinload(Document.cross_references),
-                selectinload(Document.matter),
             )
             .where(Document.id == doc_id, Document.is_deleted == False)
         )
@@ -146,7 +129,6 @@ class DocumentService:
             storage_path=file_info["storage_path"],
             description=data.description,
             owner_id=user_id,
-            matter_id=data.matter_id,
             category_id=data.category_id,
             status="draft",
             permission_scope=getattr(data, "permission_scope", "matter"),
@@ -329,15 +311,6 @@ class DocumentService:
         if document.owner_id == user_id:
             return
 
-        if document.matter_id:
-            member_result = await db.session.get(
-                select(MatterMember).where(
-                    MatterMember.matter_id == document.matter_id,
-                    MatterMember.user_id == user_id,
-                )
-            )
-            # Note: This needs db access - adjust pattern
-
     async def _check_document_access_with_db(
         self, db: AsyncSession, document: Document, current_user: dict
     ) -> None:
@@ -348,24 +321,6 @@ class DocumentService:
             return
 
         if document.owner_id == user_id:
-            return
-
-        if document.matter_id:
-            member_result = await db.execute(
-                select(MatterMember).where(
-                    MatterMember.matter_id == document.matter_id,
-                    MatterMember.user_id == user_id,
-                )
-            )
-            if member_result.scalars().first():
-                return
-
-        ref_result = await db.execute(
-            select(CrossMatterReference).where(
-                CrossMatterReference.document_id == document.id
-            )
-        )
-        if ref_result.scalars().first():
             return
 
         raise ForbiddenException(
@@ -630,82 +585,6 @@ class DocumentLockService:
         return result.rowcount
 
 
-class CrossReferenceService:
-
-    async def add_reference(
-        self,
-        db: AsyncSession,
-        doc_id: int,
-        matter_id: int,
-        user_id: int,
-        is_readonly: bool = True,
-    ) -> CrossMatterReference:
-        doc_result = await db.execute(
-            select(Document).where(Document.id == doc_id, Document.is_deleted == False)
-        )
-        document = doc_result.scalars().first()
-        if not document:
-            raise NotFoundException(resource="Document")
-
-        matter_result = await db.execute(
-            select(Matter).where(Matter.id == matter_id)
-        )
-        matter = matter_result.scalars().first()
-        if not matter:
-            raise NotFoundException(resource="Matter")
-
-        existing = await db.execute(
-            select(CrossMatterReference).where(
-                CrossMatterReference.document_id == doc_id,
-                CrossMatterReference.matter_id == matter_id,
-            )
-        )
-        if existing.scalars().first():
-            raise ConflictException(
-                detail="This document is already referenced in this matter"
-            )
-
-        ref = CrossMatterReference(
-            document_id=doc_id,
-            matter_id=matter_id,
-            is_readonly=is_readonly,
-            added_by=user_id,
-        )
-        db.add(ref)
-        await db.commit()
-        await db.refresh(ref)
-        return ref
-
-    async def remove_reference(
-        self, db: AsyncSession, ref_id: int, user_id: int
-    ) -> bool:
-        result = await db.execute(
-            select(CrossMatterReference).where(CrossMatterReference.id == ref_id)
-        )
-        ref = result.scalars().first()
-        if not ref:
-            raise NotFoundException(resource="CrossMatterReference")
-
-        await db.delete(ref)
-        await db.commit()
-        return True
-
-    async def get_references(
-        self, db: AsyncSession, doc_id: int
-    ) -> list[CrossMatterReference]:
-        stmt = (
-            select(CrossMatterReference)
-            .options(
-                selectinload(CrossMatterReference.matter),
-                selectinload(CrossMatterReference.adder),
-            )
-            .where(CrossMatterReference.document_id == doc_id)
-            .order_by(CrossMatterReference.created_at)
-        )
-        result = await db.execute(stmt)
-        return list(result.scalars().all())
-
-
 class DocumentReviewService:
 
     async def submit_for_review(
@@ -912,5 +791,4 @@ class DocumentReviewService:
 document_service = DocumentService()
 version_service = DocumentVersionService()
 lock_service = DocumentLockService()
-reference_service = CrossReferenceService()
 review_service = DocumentReviewService()

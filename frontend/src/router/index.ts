@@ -16,6 +16,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false },
   },
   {
+    path: '/auth/cas/callback',
+    name: 'CasCallback',
+    component: () => import('@/views/auth/CasCallbackView.vue'),
+    meta: { requiresAuth: false },
+  },
+  {
     path: '/dashboard',
     name: 'PublicDashboard',
     component: () => import('@/views/dashboard/PublicDashboardView.vue'),
@@ -42,21 +48,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/documents/DocumentDetailView.vue'),
       },
       {
-        path: 'matters',
-        name: 'MatterList',
-        component: () => import('@/views/matters/MatterListView.vue'),
-      },
-      {
-        path: 'matters/:id',
-        name: 'MatterDetail',
-        component: () => import('@/views/matters/MatterDetailView.vue'),
-      },
-      {
-        path: 'workflow/templates',
-        name: 'WorkflowTemplates',
-        component: () => import('@/views/workflow/WorkflowTemplateListView.vue'),
-      },
-      {
         path: 'task-templates',
         name: 'TaskTemplates',
         component: () => import('@/views/tasks/TaskTemplateListView.vue'),
@@ -66,18 +57,6 @@ const routes: RouteRecordRaw[] = [
         path: 'task-templates/:id/edit',
         name: 'TaskTemplateEdit',
         component: () => import('@/views/tasks/TaskTemplateEditView.vue'),
-        meta: { roles: ['admin', 'dept_leader'] },
-      },
-      {
-        path: 'workflow/templates/new',
-        name: 'WorkflowTemplateNew',
-        component: () => import('@/views/workflow/WorkflowTemplateEditView.vue'),
-        meta: { roles: ['admin', 'dept_leader'] },
-      },
-      {
-        path: 'workflow/templates/:id/edit',
-        name: 'WorkflowTemplateEdit',
-        component: () => import('@/views/workflow/WorkflowTemplateEditView.vue'),
         meta: { roles: ['admin', 'dept_leader'] },
       },
       {
@@ -132,12 +111,6 @@ const routes: RouteRecordRaw[] = [
         path: 'admin/tags',
         name: 'TagManagement',
         component: () => import('@/views/admin/TagManagementView.vue'),
-        meta: { roles: ['admin'] },
-      },
-      {
-        path: 'admin/matter-types',
-        name: 'MatterTypeManagement',
-        component: () => import('@/views/admin/MatterTypeManagementView.vue'),
         meta: { roles: ['admin'] },
       },
       {

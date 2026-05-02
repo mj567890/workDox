@@ -12,7 +12,7 @@ class ArchiveService:
         if not doc:
             raise NotFoundException("Archive document")
 
-        self.trigger_extraction(archive_doc_id, doc.storage_path, doc.file_type, user_id, doc.matter_id)
+        self.trigger_extraction(archive_doc_id, doc.storage_path, doc.file_type, user_id)
         return {"status": "processing", "message": "Archive extraction started"}
 
     def trigger_extraction(self, archive_doc_id: int, storage_path: str, file_type: str, user_id: int, matter_id: int | None = None):

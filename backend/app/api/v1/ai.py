@@ -6,8 +6,9 @@ import logging
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.dependencies import get_current_user, get_db
 from app.models.user import User
@@ -161,6 +162,7 @@ async def chat_stream(
 
     async def event_stream():
         full_answer = ""
+        sources_data = []
         try:
             async for chunk in rag_service.ask_stream(
                 db, data.query,
@@ -168,7 +170,8 @@ async def chat_stream(
                 chat_history=chat_history,
             ):
                 if chunk["type"] == "sources":
-                    yield f"data: {json.dumps({'type': 'sources', 'data': chunk['data']}, ensure_ascii=False)}\n\n"
+                    sources_data = chunk["data"]
+                    yield f"data: {json.dumps({'type': 'sources', 'data': sources_data}, ensure_ascii=False)}\n\n"
                 elif chunk["type"] == "token":
                     full_answer += chunk["content"]
                     yield f"data: {json.dumps({'type': 'token', 'content': chunk['content']}, ensure_ascii=False)}\n\n"
@@ -181,7 +184,7 @@ async def chat_stream(
             db.add(AIMessage(
                 conversation_id=conv.id, role="assistant",
                 content=full_answer,
-                sources=json.dumps([], ensure_ascii=False),
+                sources=json.dumps(sources_data, ensure_ascii=False),
             ))
             if conv.title == "New Chat":
                 conv.title = data.query[:50]
@@ -249,6 +252,7 @@ async def list_conversations(
     """List AI chat conversations for current user."""
     result = await db.execute(
         select(AIConversation)
+        .options(selectinload(AIConversation.messages))
         .where(AIConversation.user_id == current_user.id)
         .order_by(AIConversation.updated_at.desc())
         .limit(50)

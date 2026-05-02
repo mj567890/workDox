@@ -52,7 +52,7 @@
           <template #default="{ row }">
             <el-button v-if="row.status === 'pending'" text type="primary" size="small" @click="handleStart(row.id)">开始</el-button>
             <el-button v-if="row.status === 'in_progress'" text type="success" size="small" @click="handleComplete(row.id)">完成</el-button>
-            <el-button text size="small" @click="$router.push(`/matters/${row.matter_id}`)">查看事项</el-button>
+            <el-button text size="small" @click="$router.push('/task-mgmt')">查看</el-button>
           </template>
         </el-table-column>
       </el-table>

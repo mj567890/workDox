@@ -43,11 +43,9 @@ def is_allowed_file(filename: str) -> bool:
     return ext in ALLOWED_EXTENSIONS
 
 
-def generate_storage_path(filename: str, matter_id: int | None = None) -> str:
+def generate_storage_path(filename: str) -> str:
     unique_id = uuid.uuid4().hex[:12]
     safe_name = Path(filename).stem[:100].replace(" ", "_") + "_" + unique_id + Path(filename).suffix
-    if matter_id:
-        return f"matters/{matter_id}/{safe_name}"
     return f"documents/{safe_name}"
 
 

@@ -81,7 +81,7 @@
             </el-table-column>
             <el-table-column label="操作" width="60">
               <template #default="{ row }">
-                <el-button text type="primary" size="small" @click="$router.push(`/matters/${row.matter_id}`)">查看</el-button>
+                <el-button text type="primary" size="small" @click="$router.push('/task-mgmt')">查看</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -91,7 +91,7 @@
       <el-col :span="12">
         <el-card header="风险预警" shadow="never">
           <div class="risk-list">
-            <div v-for="item in riskAlerts" :key="item.matter_id" class="risk-item" @click="$router.push(`/matters/${item.matter_id}`)">
+            <div v-for="item in riskAlerts" :key="item.task_id" class="risk-item" @click="$router.push('/task-mgmt')">
               <div class="risk-header">
                 <el-tag :type="item.risk_level === 'high' ? 'danger' : 'warning'" size="small">
                   {{ item.risk_type }}

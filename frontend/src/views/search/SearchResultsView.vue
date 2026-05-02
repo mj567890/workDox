@@ -91,7 +91,7 @@ function navigateTo(item: any) {
   if (item.type === 'document') {
     router.push(`/documents/${item.id}`)
   } else if (item.type === 'matter') {
-    router.push(`/matters/${item.id}`)
+    router.push(`/task-mgmt`)
   }
 }
 

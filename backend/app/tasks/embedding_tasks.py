@@ -85,9 +85,16 @@ def summarize_document_task(self, doc_id: int):
         finally:
             loop.close()
 
-        # Store summary (optional - could add summary column later)
+        # Store summary in document record
+        with Session(create_engine(settings.DATABASE_URL_SYNC)) as db:
+            db.execute(
+                text("UPDATE document SET summary = :summary WHERE id = :did"),
+                {"summary": summary[:2000], "did": doc_id},
+            )
+            db.commit()
+
         logger.info("Auto-summary for doc %d (%s): %s", doc_id, doc_name, summary[:100])
-        return {"status": "SUCCESS", "doc_id": doc_id, "summary": summary[:500]}
+        return {"status": "SUCCESS", "doc_id": doc_id, "summary": summary[:2000]}
 
     except Exception as exc:
         logger.exception("Summarize task failed for doc %d: %s", doc_id, exc)
