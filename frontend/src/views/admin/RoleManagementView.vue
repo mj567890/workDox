@@ -9,6 +9,9 @@
 
     <el-card shadow="never">
       <el-table :data="roles" v-loading="loading" stripe>
+        <template #empty>
+          <el-empty description="暂无角色数据" />
+        </template>
         <el-table-column prop="role_name" label="角色名称" width="150" />
         <el-table-column prop="role_code" label="角色代码" width="200" />
         <el-table-column prop="description" label="描述" min-width="200" />
@@ -24,10 +27,10 @@
     <el-dialog v-model="showDialog" :title="isEdit ? '编辑角色' : '创建角色'" width="400px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="角色名称" prop="role_name">
-          <el-input v-model="form.role_name" />
+          <el-input v-model="form.role_name" maxlength="50" show-word-limit />
         </el-form-item>
         <el-form-item label="角色代码" prop="role_code">
-          <el-input v-model="form.role_code" :disabled="isEdit" />
+          <el-input v-model="form.role_code" :disabled="isEdit" maxlength="50" show-word-limit />
         </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="form.description" type="textarea" />

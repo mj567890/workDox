@@ -81,7 +81,8 @@ async def _do_dispatch(event_type: str, payload: dict, actor_id: int | None):
                     sub.last_triggered_at = datetime.now(timezone.utc)
                     sub.last_status = status
 
-                except Exception:
+                except (httpx.HTTPError, httpx.TimeoutException, ConnectionError, OSError) as exc:
+                    logger.debug("Webhook delivery failed for sub_id=%d url=%s: %s", sub.id, sub.url, exc)
                     sub.last_triggered_at = datetime.now(timezone.utc)
                     sub.last_status = "failed"
 
@@ -92,4 +93,4 @@ async def _do_dispatch(event_type: str, payload: dict, actor_id: int | None):
                 await db.commit()
 
     except Exception as e:
-        logger.error(f"Webhook dispatch error: {e}")
+        logger.exception("Webhook dispatch failed for event_type=%s actor_id=%s", event_type, actor_id)

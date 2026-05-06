@@ -8,19 +8,32 @@ from app.models.task_manager import (
     TaskTemplate, StageTemplate, SlotTemplate,
     ProjectTask, ProjectStage, ProjectSlot, SlotVersion,
 )
+from app.core.pagination import PaginationParams
 from app.core.exceptions import NotFoundException, ValidationException
 
 
 class TaskTemplateService:
 
-    async def list_templates(self, db: AsyncSession, category: str | None = None) -> list[TaskTemplate]:
-        stmt = select(TaskTemplate).options(
+    async def list_templates(
+        self, db: AsyncSession, category: str | None = None,
+        pagination: PaginationParams | None = None,
+    ) -> tuple[list[TaskTemplate], int]:
+        base_query = select(TaskTemplate).options(
             selectinload(TaskTemplate.stages).selectinload(StageTemplate.slots)
-        ).order_by(TaskTemplate.id)
+        )
         if category:
-            stmt = stmt.where(TaskTemplate.category == category)
+            base_query = base_query.where(TaskTemplate.category == category)
+
+        count_query = select(func.count()).select_from(base_query.subquery())
+        count_result = await db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        stmt = base_query.order_by(TaskTemplate.id)
+        if pagination:
+            stmt = stmt.offset(pagination.offset).limit(pagination.limit)
+
         result = await db.execute(stmt)
-        return list(result.scalars().all())
+        return list(result.scalars().all()), total
 
     async def get_template(self, db: AsyncSession, template_id: int) -> TaskTemplate:
         stmt = select(TaskTemplate).options(
@@ -203,15 +216,27 @@ class TaskTemplateService:
 
 class TaskInstanceService:
 
-    async def list_tasks(self, db: AsyncSession, status: str | None = None) -> list[ProjectTask]:
-        stmt = select(ProjectTask).options(
+    async def list_tasks(
+        self, db: AsyncSession, status: str | None = None,
+        pagination: PaginationParams | None = None,
+    ) -> tuple[list[ProjectTask], int]:
+        base_query = select(ProjectTask).options(
             selectinload(ProjectTask.template),
             selectinload(ProjectTask.stages).selectinload(ProjectStage.slots),
-        ).order_by(ProjectTask.id.desc())
+        )
         if status:
-            stmt = stmt.where(ProjectTask.status == status)
+            base_query = base_query.where(ProjectTask.status == status)
+
+        count_query = select(func.count()).select_from(base_query.subquery())
+        count_result = await db.execute(count_query)
+        total = count_result.scalar() or 0
+
+        stmt = base_query.order_by(ProjectTask.id.desc())
+        if pagination:
+            stmt = stmt.offset(pagination.offset).limit(pagination.limit)
+
         result = await db.execute(stmt)
-        return list(result.scalars().all())
+        return list(result.scalars().all()), total
 
     async def get_task(self, db: AsyncSession, task_id: int) -> ProjectTask:
         stmt = select(ProjectTask).options(
@@ -452,6 +477,28 @@ class TaskInstanceService:
         result = await db.execute(stmt)
         return list(result.scalars().all())
 
+    async def _get_slot_versions_batch(
+        self, db: AsyncSession, slot_ids: list[int]
+    ) -> dict[int, list[SlotVersion]]:
+        """Batch-load slot versions for multiple slot IDs to avoid N+1 in get_board."""
+        if not slot_ids:
+            return {}
+        stmt = (
+            select(SlotVersion)
+            .options(
+                selectinload(SlotVersion.document),
+                selectinload(SlotVersion.creator),
+            )
+            .where(SlotVersion.slot_id.in_(slot_ids))
+            .order_by(SlotVersion.created_at.desc())
+        )
+        result = await db.execute(stmt)
+        versions = result.scalars().all()
+        grouped: dict[int, list[SlotVersion]] = {sid: [] for sid in slot_ids}
+        for v in versions:
+            grouped.setdefault(v.slot_id, []).append(v)
+        return grouped
+
     async def get_board(self, db: AsyncSession, task_id: int) -> dict:
         task = await self.get_task(db, task_id)
         total_required = sum(1 for s in task.stages for sl in s.slots if sl.is_required)
@@ -461,11 +508,15 @@ class TaskInstanceService:
         )
         progress = round(filled_required / total_required * 100, 1) if total_required else 0
 
+        # Batch-load all slot versions for the entire task in one query
+        all_slot_ids = [slot.id for stage in task.stages for slot in stage.slots]
+        versions_by_slot = await self._get_slot_versions_batch(db, all_slot_ids)
+
         stages_data = []
         for stage in task.stages:
             slots_data = []
             for slot in stage.slots:
-                versions = await self.get_slot_versions(db, task_id, stage.id, slot.id)
+                versions = versions_by_slot.get(slot.id, [])
                 slots_data.append({
                     "id": slot.id,
                     "name": slot.name,

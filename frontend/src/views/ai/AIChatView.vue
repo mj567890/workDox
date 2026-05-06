@@ -117,13 +117,23 @@ const store = useAIStore()
 const inputText = ref('')
 const messagesContainer = ref<HTMLElement>()
 
-onMounted(() => {
-  store.fetchConversations()
-  store.fetchProviders()
+onMounted(async () => {
+  try {
+    await Promise.all([
+      store.fetchConversations(),
+      store.fetchProviders(),
+    ])
+  } catch {
+    // API interceptor handles error messages
+  }
 })
 
 async function selectConversation(id: number) {
-  await store.fetchMessages(id)
+  try {
+    await store.fetchMessages(id)
+  } catch {
+    // API interceptor handles error messages
+  }
 }
 
 async function handleSend() {

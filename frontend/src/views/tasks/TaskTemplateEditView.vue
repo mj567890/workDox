@@ -144,38 +144,50 @@ onMounted(async () => {
 })
 
 async function handleSaveMeta() {
-  await taskTemplatesApi.update(templateId.value, {
-    name: metaForm.name,
-    category: metaForm.category || undefined,
-    description: metaForm.description || undefined,
-  })
-  ElMessage.success('基本信息已保存')
+  try {
+    await taskTemplatesApi.update(templateId.value, {
+      name: metaForm.name,
+      category: metaForm.category || undefined,
+      description: metaForm.description || undefined,
+    })
+    ElMessage.success('基本信息已保存')
+  } catch {
+    // Error handled by API interceptor
+  }
 }
 
 // ── Stage operations ──
 
 async function openAddStage() {
-  const stage = await taskTemplatesApi.addStage(templateId.value, {
-    name: '新阶段',
-    order: stages.value.length + 1,
-  })
-  stages.value.push({
-    ...stage,
-    slots: [],
-  })
-  activeStages.value.push(String(stage.id))
-  ElMessage.success('阶段已添加')
+  try {
+    const stage = await taskTemplatesApi.addStage(templateId.value, {
+      name: '新阶段',
+      order: stages.value.length + 1,
+    })
+    stages.value.push({
+      ...stage,
+      slots: [],
+    })
+    activeStages.value.push(String(stage.id))
+    ElMessage.success('阶段已添加')
+  } catch {
+    // Error handled by API interceptor
+  }
 }
 
 async function saveStage(si: number) {
   const s = stages.value[si]
   if (!s.id) return
-  await taskTemplatesApi.updateStage(templateId.value, s.id, {
-    name: s.name,
-    order: s.order,
-    description: s.description,
-    deadline_offset_days: s.deadline_offset_days,
-  })
+  try {
+    await taskTemplatesApi.updateStage(templateId.value, s.id, {
+      name: s.name,
+      order: s.order,
+      description: s.description,
+      deadline_offset_days: s.deadline_offset_days,
+    })
+  } catch {
+    // Error handled by API interceptor
+  }
 }
 
 async function handleDeleteStage(si: number) {
@@ -195,31 +207,39 @@ async function handleDeleteStage(si: number) {
 // ── Slot operations ──
 
 async function openAddSlot(si: number) {
-  const stage = stages.value[si]
-  const slot = await taskTemplatesApi.addSlot(templateId.value, stage.id, {
-    name: '新槽位',
-    is_required: true,
-    sort_order: (stage.slots || []).length + 1,
-  })
-  if (!stage.slots) stage.slots = []
-  stage.slots.push({ ...slot, file_type_hints_display: '' })
-  ElMessage.success('槽位已添加')
+  try {
+    const stage = stages.value[si]
+    const slot = await taskTemplatesApi.addSlot(templateId.value, stage.id, {
+      name: '新槽位',
+      is_required: true,
+      sort_order: (stage.slots || []).length + 1,
+    })
+    if (!stage.slots) stage.slots = []
+    stage.slots.push({ ...slot, file_type_hints_display: '' })
+    ElMessage.success('槽位已添加')
+  } catch {
+    // Error handled by API interceptor
+  }
 }
 
 async function saveSlot(si: number, slotIdx: number) {
   const stage = stages.value[si]
   const slot = stage.slots[slotIdx]
   if (!slot.id) return
-  await taskTemplatesApi.updateSlot(templateId.value, stage.id, slot.id, {
-    name: slot.name,
-    description: slot.description,
-    is_required: slot.is_required,
-    file_type_hints: slot.file_type_hints_display
-      ? slot.file_type_hints_display.split(',').map((s: string) => s.trim()).filter(Boolean)
-      : null,
-    sort_order: slot.sort_order,
-  })
-  ElMessage.success('槽位已保存')
+  try {
+    await taskTemplatesApi.updateSlot(templateId.value, stage.id, slot.id, {
+      name: slot.name,
+      description: slot.description,
+      is_required: slot.is_required,
+      file_type_hints: slot.file_type_hints_display
+        ? slot.file_type_hints_display.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : null,
+      sort_order: slot.sort_order,
+    })
+    ElMessage.success('槽位已保存')
+  } catch {
+    // Error handled by API interceptor
+  }
 }
 
 async function handleDeleteSlot(si: number, slotIdx: number) {

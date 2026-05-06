@@ -29,7 +29,6 @@ class OAuth2Service:
 
         state = secrets.token_urlsafe(32)
 
-        from app.core.security import create_access_token
         from datetime import timedelta
         state_token = create_access_token({"state": state, "purpose": "oauth2"}, expires_delta=timedelta(minutes=5))
 

@@ -1,4 +1,3 @@
-import secrets
 from urllib.parse import urlencode
 from xml.etree import ElementTree
 

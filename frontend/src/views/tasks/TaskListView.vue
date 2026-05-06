@@ -6,6 +6,9 @@
     </div>
 
     <el-table :data="store.tasks" v-loading="store.loading" stripe>
+      <template #empty>
+        <el-empty description="暂无任务数据" />
+      </template>
       <el-table-column prop="id" label="ID" width="60" />
       <el-table-column prop="title" label="任务名称" min-width="200" />
       <el-table-column label="模板" width="150">
@@ -57,8 +60,14 @@ const creating = ref(false)
 const form = reactive({ template_id: null as number | null, title: '' })
 
 onMounted(async () => {
-  await store.fetchTemplates()
-  await store.fetchTasks()
+  try {
+    await Promise.all([
+      store.fetchTemplates(),
+      store.fetchTasks(),
+    ])
+  } catch {
+    // API interceptor handles error messages
+  }
 })
 
 async function onDialogOpen() {

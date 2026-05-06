@@ -66,36 +66,56 @@ class BatchIdsRequest(BaseModel):
 
 # ── Helpers ──────────────────────────────────────────────────────
 
-async def _get_user_name(db: AsyncSession, user_id: int) -> str:
-    """Look up a user's real_name by ID."""
-    result = await db.execute(select(User.real_name).where(User.id == user_id))
-    row = result.scalar_one_or_none()
-    return row if row else ""
+async def _build_task_out_batch(
+    tasks: list[Task], db: AsyncSession
+) -> list[TaskOut]:
+    """Build TaskOut list with batch-loaded template names and creator names to avoid N+1."""
+    if not tasks:
+        return []
+
+    # Collect unique IDs
+    template_ids = list({t.template_id for t in tasks if t.template_id})
+    creator_ids = list({t.creator_id for t in tasks if t.creator_id})
+
+    # Batch load template names
+    tmpl_names: dict[int, str] = {}
+    if template_ids:
+        tmpl_result = await db.execute(
+            select(TaskTemplate.id, TaskTemplate.name).where(
+                TaskTemplate.id.in_(template_ids)
+            )
+        )
+        tmpl_names = {row[0]: row[1] for row in tmpl_result.all()}
+
+    # Batch load creator names
+    creator_names: dict[int, str] = {}
+    if creator_ids:
+        user_result = await db.execute(
+            select(User.id, User.real_name).where(User.id.in_(creator_ids))
+        )
+        creator_names = {row[0]: row[1] for row in user_result.all()}
+
+    return [
+        TaskOut(
+            id=t.id,
+            title=t.title,
+            template_id=t.template_id,
+            template_name=tmpl_names.get(t.template_id),
+            creator_id=t.creator_id,
+            creator_name=creator_names.get(t.creator_id, ""),
+            status=t.status,
+            current_stage_order=t.current_stage_order,
+            created_at=t.created_at.isoformat() if t.created_at else None,
+            updated_at=t.updated_at.isoformat() if t.updated_at else None,
+        )
+        for t in tasks
+    ]
 
 
 async def _task_to_out(task: Task, db: AsyncSession) -> TaskOut:
-    tmpl_name = None
-    if task.template_id:
-        tmpl_result = await db.execute(
-            select(TaskTemplate.name).where(TaskTemplate.id == task.template_id)
-        )
-        row = tmpl_result.scalar_one_or_none()
-        tmpl_name = row if row else None
-
-    creator_name = await _get_user_name(db, task.creator_id)
-
-    return TaskOut(
-        id=task.id,
-        title=task.title,
-        template_id=task.template_id,
-        template_name=tmpl_name,
-        creator_id=task.creator_id,
-        creator_name=creator_name,
-        status=task.status,
-        current_stage_order=task.current_stage_order,
-        created_at=task.created_at.isoformat() if task.created_at else None,
-        updated_at=task.updated_at.isoformat() if task.updated_at else None,
-    )
+    """Build TaskOut for a single task (uses batch helper internally)."""
+    result = await _build_task_out_batch([task], db)
+    return result[0]
 
 
 def _get_user_roles(user: User) -> list[str]:
@@ -149,9 +169,7 @@ async def list_tasks(
     )
     tasks = result.scalars().all()
 
-    items = []
-    for t in tasks:
-        items.append(await _task_to_out(t, db))
+    items = await _build_task_out_batch(list(tasks), db)
 
     total_pages = (total + page_size - 1) // page_size if total > 0 else 0
     return TaskListResponse(

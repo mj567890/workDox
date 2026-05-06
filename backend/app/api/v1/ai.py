@@ -15,6 +15,7 @@ from app.models.ai import AIConversation, AIMessage
 from app.services.rag_service import RAGService
 from app.services.summarization_service import SummarizationService
 from app.services.ai_config import get_default_provider, get_provider_config, list_providers
+from app.services.llm_service import ChatError
 
 router = APIRouter()
 rag_service = RAGService()
@@ -144,13 +145,17 @@ async def chat(
 
     provider = await _get_provider(db, data.provider_id)
 
-    result = await rag_service.ask(
-        db,
-        data.query,
-        provider=provider,
-        document_ids=data.document_ids,
-        chat_history=chat_history,
-    )
+    try:
+        result = await rag_service.ask(
+            db,
+            data.query,
+            provider=provider,
+            document_ids=data.document_ids,
+            chat_history=chat_history,
+        )
+    except ChatError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail=str(e))
 
     conv = await _get_or_create_conversation(db, current_user.id, data)
     db.add(

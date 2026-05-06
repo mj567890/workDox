@@ -30,7 +30,7 @@ class SummarizationService:
                 from app.services.ai_config import get_default_provider
                 return await get_default_provider(db)
             except Exception:
-                pass
+                logger.debug("Failed to load AI provider from DB, falling back to env", exc_info=True)
         return _get_provider_from_env()
 
     async def summarize(self, text: str, db: AsyncSession | None = None, doc_name: str = "") -> str:

@@ -1,9 +1,13 @@
+import logging
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+import jwt
 
 from app.core.ws_manager import ws_manager
-from app.core.security import decode_token
+from app.core.security import decode_access_token
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.websocket("/ws/{user_id}")
@@ -14,11 +18,12 @@ async def websocket_endpoint(
 ):
     # Verify token
     try:
-        payload = decode_token(token)
+        payload = decode_access_token(token)
         if payload.get("sub") != str(user_id):
             await websocket.close(code=4003)
             return
-    except Exception:
+    except jwt.PyJWTError:
+        logger.warning("WebSocket JWT validation failed for user_id=%d", user_id)
         await websocket.close(code=4001)
         return
 

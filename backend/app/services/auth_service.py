@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -8,6 +9,8 @@ from sqlalchemy.orm import selectinload
 from app.models.user import User
 from app.core.security import verify_password, create_access_token
 from app.core.exceptions import UnauthorizedException, NotFoundException
+
+logger = logging.getLogger(__name__)
 
 
 class AuthService:
@@ -24,10 +27,13 @@ class AuthService:
         user = result.scalars().first()
 
         if not user:
+            logger.warning("Failed login attempt: user '%s' not found or disabled", username)
             raise UnauthorizedException(detail="Invalid username or password")
         if user.auth_provider != "local":
+            logger.warning("Failed login attempt: user '%s' uses %s auth", username, user.auth_provider)
             raise UnauthorizedException(detail=f"This account uses {user.auth_provider} authentication. Please use the appropriate login method.")
         if not verify_password(password, user.password_hash):
+            logger.warning("Failed login attempt: incorrect password for user '%s'", username)
             raise UnauthorizedException(detail="Invalid username or password")
 
         roles = [

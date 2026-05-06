@@ -18,8 +18,6 @@ class NotificationOut(BaseModel):
     title: str
     content: str | None
     is_read: bool
-    related_matter_id: int | None
-    related_matter_title: str | None
     created_at: str | None
 
     class Config:
@@ -65,8 +63,6 @@ async def list_notifications(
             title=n.title,
             content=n.content,
             is_read=n.is_read,
-            related_matter_id=n.related_matter_id,
-            related_matter_title=n.related_matter.title if n.related_matter else None,
             created_at=n.created_at.isoformat() if n.created_at else None,
         )
         for n in items

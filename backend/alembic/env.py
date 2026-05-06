@@ -17,7 +17,10 @@ from app.models.notification import Notification
 from app.models.operation_log import OperationLog
 from app.models.system_config import SystemConfig
 from app.models.ai_provider import AIProvider
+from app.models.ai import DocumentChunk, AIConversation, AIMessage
+from app.models.document import DocumentReview
 from app.models.task_manager import TaskTemplate, StageTemplate, SlotTemplate, ProjectTask, ProjectStage, ProjectSlot, SlotVersion
+from app.models.webhook import WebhookSubscription
 
 settings = get_settings()
 config = context.config

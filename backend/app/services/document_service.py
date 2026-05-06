@@ -21,9 +21,6 @@ from app.core.exceptions import (
     DocumentLockedException,
     VersionConflictException,
 )
-from app.core.permissions import RoleCode
-
-
 class DocumentService:
 
     async def get_documents(
@@ -111,7 +108,7 @@ class DocumentService:
         if not document:
             raise NotFoundException(resource="Document")
 
-        await self._check_document_access(document, current_user)
+        await self._check_document_access(db, document, current_user)
         return document
 
     async def create_document(
@@ -300,18 +297,6 @@ class DocumentService:
         return True
 
     async def _check_document_access(
-        self, document: Document, current_user: dict
-    ) -> None:
-        user_id = current_user.get("id")
-        user_roles: list[str] = current_user.get("roles", [])
-
-        if "admin" in user_roles:
-            return
-
-        if document.owner_id == user_id:
-            return
-
-    async def _check_document_access_with_db(
         self, db: AsyncSession, document: Document, current_user: dict
     ) -> None:
         user_id = current_user.get("id")
@@ -365,8 +350,11 @@ class DocumentVersionService:
         change_note: str | None,
         set_as_official: bool = False,
     ) -> DocumentVersion:
+        # Lock the document row to prevent concurrent version uploads from getting the same version_no
         doc_result = await db.execute(
-            select(Document).where(Document.id == doc_id, Document.is_deleted == False)
+            select(Document)
+            .where(Document.id == doc_id, Document.is_deleted == False)
+            .with_for_update()
         )
         document = doc_result.scalars().first()
         if not document:
@@ -486,11 +474,14 @@ class DocumentLockService:
         if not document:
             raise NotFoundException(resource="Document")
 
+        # Use SELECT ... FOR UPDATE to prevent concurrent lock acquisitions
         existing_lock_result = await db.execute(
-            select(DocumentEditLock).where(
+            select(DocumentEditLock)
+            .where(
                 DocumentEditLock.document_id == doc_id,
                 DocumentEditLock.expires_at > datetime.now(timezone.utc),
             )
+            .with_for_update()
         )
         existing_lock = existing_lock_result.scalars().first()
         if existing_lock:
@@ -521,7 +512,7 @@ class DocumentLockService:
         return lock
 
     async def unlock_document(
-        self, db: AsyncSession, doc_id: int, user_id: int
+        self, db: AsyncSession, doc_id: int, user_id: int, user_roles: list[str] | None = None
     ) -> bool:
         lock_result = await db.execute(
             select(DocumentEditLock).where(DocumentEditLock.document_id == doc_id)
@@ -531,16 +522,14 @@ class DocumentLockService:
         if not lock:
             return True
 
-        user_roles: list[str] = []
-        user_result = await db.execute(
-            select(DocumentEditLock).where(
-                DocumentEditLock.document_id == doc_id,
-                DocumentEditLock.locked_by == user_id,
-            )
-        )
-        is_holder = user_result.scalars().first() is not None
+        # Admin can unlock any document
+        if user_roles and "admin" in user_roles:
+            await db.delete(lock)
+            await db.commit()
+            return True
 
-        if not is_holder:
+        # Check if user is the lock holder
+        if lock.locked_by != user_id:
             raise ForbiddenException(
                 detail="Only the lock holder or admin can unlock this document"
             )

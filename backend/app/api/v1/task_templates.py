@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_current_user
+from app.core.pagination import PaginationParams
 from app.models.user import User
 from app.services.task_management_service import TaskTemplateService
 
@@ -82,10 +83,22 @@ class ReorderIn(BaseModel):
 @router.get("")
 async def list_templates(
     category: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
 ):
-    templates = await TaskTemplateService().list_templates(db, category)
-    return {"items": templates, "total": len(templates)}
+    pagination = PaginationParams(page=page, page_size=page_size)
+    templates, total = await TaskTemplateService().list_templates(
+        db, category, pagination=pagination,
+    )
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 0
+    return {
+        "items": templates,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": total_pages,
+    }
 
 
 @router.post("")

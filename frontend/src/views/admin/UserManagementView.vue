@@ -16,6 +16,9 @@
       </div>
 
       <el-table :data="users" v-loading="loading" stripe>
+        <template #empty>
+          <el-empty description="暂无用户数据" />
+        </template>
         <el-table-column prop="username" label="用户名" width="120" />
         <el-table-column prop="real_name" label="姓名" width="100" />
         <el-table-column prop="email" label="邮箱" min-width="180" />
@@ -48,19 +51,19 @@
     <el-dialog v-model="showCreate" :title="editingUser ? '编辑用户' : '创建用户'" width="500px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="用户名" prop="username">
-          <el-input v-model="form.username" :disabled="!!editingUser" />
+          <el-input v-model="form.username" :disabled="!!editingUser" maxlength="50" show-word-limit />
         </el-form-item>
         <el-form-item label="密码" v-if="!editingUser">
-          <el-input v-model="form.password" type="password" show-password />
+          <el-input v-model="form.password" type="password" show-password maxlength="128" />
         </el-form-item>
         <el-form-item label="姓名" prop="real_name">
-          <el-input v-model="form.real_name" />
+          <el-input v-model="form.real_name" maxlength="50" show-word-limit />
         </el-form-item>
         <el-form-item label="邮箱">
-          <el-input v-model="form.email" />
+          <el-input v-model="form.email" maxlength="100" show-word-limit />
         </el-form-item>
         <el-form-item label="电话">
-          <el-input v-model="form.phone" />
+          <el-input v-model="form.phone" maxlength="20" show-word-limit />
         </el-form-item>
         <el-form-item label="部门">
           <el-select v-model="form.department_id" clearable>
@@ -186,12 +189,16 @@ async function handleDelete(row: UserItem) {
 
 onMounted(async () => {
   await fetchData()
-  const [deptRes, roleRes] = await Promise.all([
-    usersApi.getDepartments(),
-    usersApi.getRoles(),
-  ])
-  departments.value = deptRes
-  roles.value = roleRes
+  try {
+    const [deptRes, roleRes] = await Promise.all([
+      usersApi.getDepartments(),
+      usersApi.getRoles(),
+    ])
+    departments.value = deptRes
+    roles.value = roleRes
+  } catch {
+    // Non-critical data; page still functions without departments/roles loaded
+  }
 })
 </script>
 

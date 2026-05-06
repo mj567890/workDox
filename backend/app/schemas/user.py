@@ -20,23 +20,23 @@ class RoleInfo(BaseModel):
 class RoleCreate(BaseModel):
     """Create a new role."""
 
-    role_name: str = Field(..., description="Display name of the role")
-    role_code: str = Field(..., description="Unique code identifier for the role")
-    description: str | None = Field(default=None, description="Optional description")
+    role_name: str = Field(..., min_length=1, max_length=50, description="Display name of the role")
+    role_code: str = Field(..., min_length=1, max_length=50, description="Unique code identifier for the role")
+    description: str | None = Field(default=None, max_length=200, description="Optional description")
 
 
 class RoleUpdate(BaseModel):
     """Update an existing role (partial)."""
 
-    role_name: str | None = Field(default=None, description="New display name")
-    description: str | None = Field(default=None, description="New description")
+    role_name: str | None = Field(default=None, max_length=50, description="New display name")
+    description: str | None = Field(default=None, max_length=200, description="New description")
 
 
 class DepartmentCreate(BaseModel):
     """Create a new department."""
 
-    name: str = Field(..., description="Department name")
-    code: str = Field(..., description="Unique department code")
+    name: str = Field(..., min_length=1, max_length=100, description="Department name")
+    code: str = Field(..., min_length=1, max_length=50, description="Unique department code")
     parent_id: int | None = Field(default=None, description="Parent department ID (null for top-level)")
 
 
@@ -56,11 +56,11 @@ class DepartmentResponse(BaseModel):
 class UserCreate(BaseModel):
     """Request body to create a new user."""
 
-    username: str = Field(..., description="Login username")
-    password: str = Field(..., description="Login password")
-    real_name: str = Field(..., description="Real/full name")
-    email: str | None = Field(default=None, description="Email address")
-    phone: str | None = Field(default=None, description="Phone number")
+    username: str = Field(..., min_length=2, max_length=50, description="Login username")
+    password: str = Field(..., min_length=6, max_length=128, description="Login password")
+    real_name: str = Field(..., min_length=1, max_length=50, description="Real/full name")
+    email: str | None = Field(default=None, max_length=100, description="Email address")
+    phone: str | None = Field(default=None, max_length=20, description="Phone number")
     department_id: int | None = Field(default=None, description="Department ID")
     role_ids: list[int] = Field(default_factory=list, description="List of role IDs to assign")
 
@@ -68,11 +68,11 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     """Partial update for an existing user."""
 
-    real_name: str | None = Field(default=None, description="New real name")
-    email: str | None = Field(default=None, description="New email")
-    phone: str | None = Field(default=None, description="New phone number")
+    real_name: str | None = Field(default=None, max_length=50, description="New real name")
+    email: str | None = Field(default=None, max_length=100, description="New email")
+    phone: str | None = Field(default=None, max_length=20, description="New phone number")
     department_id: int | None = Field(default=None, description="New department ID")
-    status: str | None = Field(default=None, description="New status (active/disabled)")
+    status: str | None = Field(default=None, max_length=20, description="New status (active/disabled)")
 
 
 class UserResponse(BaseModel):

@@ -65,8 +65,8 @@ instance.interceptors.response.use(
 
 export default instance
 
-export function get<T = any>(url: string, params?: any): Promise<T> {
-  return instance.get(url, { params })
+export function get<T = any>(url: string, params?: any, config?: AxiosRequestConfig): Promise<T> {
+  return instance.get(url, { params, ...config })
 }
 
 export function post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {

@@ -17,6 +17,9 @@
       </div>
 
       <el-table :data="webhooks" stripe v-loading="loading">
+        <template #empty>
+          <el-empty description="暂无 Webhook 配置" />
+        </template>
         <el-table-column prop="name" label="名称" min-width="150" />
         <el-table-column prop="url" label="URL" min-width="250" show-overflow-tooltip />
         <el-table-column label="事件" min-width="200">

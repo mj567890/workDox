@@ -2,23 +2,27 @@ from fastapi import APIRouter, Depends, Query, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 import asyncio
+import logging
 from datetime import datetime, timezone, timedelta
 from io import BytesIO
 
 from app.dependencies import get_current_user, get_db, check_permission
+from app.core.cache import cache
 from app.core.exceptions import NotFoundException, ConflictException, ForbiddenException, ValidationException
 from app.core.permissions import Permission, RoleCode
 from app.core.pagination import PaginationParams
 from app.core.storage import minio_client
+
+logger = logging.getLogger(__name__)
 from app.models.user import User
 from app.models.document import (
     Document, DocumentVersion, DocumentCategory, Tag,
     DocumentEditLock, DocumentReview,
 )
-from app.utils.file_utils import detect_file_type, generate_storage_path, compute_sha256, is_allowed_file
+from app.utils.file_utils import detect_file_type, generate_storage_path, compute_sha256, is_allowed_file, validate_file_content
 from app.services.document_service import (
     DocumentService, DocumentVersionService, DocumentLockService, DocumentReviewService,
 )
@@ -36,23 +40,23 @@ review_service = DocumentReviewService()
 # ---------- Pydantic Schemas ----------
 
 class DocumentCreate(BaseModel):
-    original_name: str
-    file_type: str
+    original_name: str = Field(..., min_length=1, max_length=500)
+    file_type: str = Field(..., max_length=50)
     file_size: int
-    mime_type: str
-    storage_path: str
+    mime_type: str = Field(..., max_length=100)
+    storage_path: str = Field(..., max_length=500)
     description: str | None = None
     category_id: int | None = None
     tag_ids: list[int] = []
-    checksum: str | None = None
+    checksum: str | None = Field(default=None, max_length=64)
 
 
 class DocumentUpdate(BaseModel):
-    original_name: str | None = None
+    original_name: str | None = Field(default=None, max_length=500)
     description: str | None = None
     category_id: int | None = None
     tag_ids: list[int] | None = None
-    permission_scope: str | None = None
+    permission_scope: str | None = Field(default=None, max_length=30)
 
 
 class DocumentOut(BaseModel):
@@ -103,15 +107,15 @@ class VersionOut(BaseModel):
 
 
 class CategoryCreate(BaseModel):
-    name: str
-    code: str
-    description: str | None = None
+    name: str = Field(..., min_length=1, max_length=100)
+    code: str = Field(..., min_length=1, max_length=50)
+    description: str | None = Field(default=None, max_length=500)
     sort_order: int = 0
 
 
 class CategoryUpdate(BaseModel):
-    name: str | None = None
-    description: str | None = None
+    name: str | None = Field(default=None, max_length=100)
+    description: str | None = Field(default=None, max_length=500)
     sort_order: int | None = None
 
 
@@ -128,8 +132,8 @@ class CategoryOut(BaseModel):
 
 
 class TagCreate(BaseModel):
-    name: str
-    color: str = "#409EFF"
+    name: str = Field(..., min_length=1, max_length=50)
+    color: str = Field(default="#409EFF", max_length=20)
 
 
 class TagOut(BaseModel):
@@ -176,7 +180,7 @@ async def _background_extract(db: AsyncSession, doc_id: int, file_data: bytes, f
             from app.tasks.embedding_tasks import embed_document_task
             embed_document_task.delay(doc_id)
     except Exception:
-        pass  # Silently ignore extraction failures in background
+        logger.warning("Background text extraction failed for doc_id=%d", doc_id, exc_info=True)
 
 
 def _user_to_dict(user: User) -> dict:
@@ -217,12 +221,11 @@ def _doc_to_out(d: Document) -> DocumentOut:
                 current_version_no = v.version_no
                 break
 
-    tags = [t.name for t in (d.tags or [])]
-    if not tags:
-        try:
-            tags = [t.name for t in (d.tags or [])]
-        except Exception:
-            tags = []
+    try:
+        tags = [t.name for t in d.tags]
+    except Exception:
+        tags = []
+        logger.debug("Unable to resolve tags for document id=%d", d.id, exc_info=True)
 
     return DocumentOut(
         id=d.id,
@@ -318,6 +321,11 @@ async def upload_document(
         raise ValidationException(detail=f"File too large, max {settings.MAX_FILE_SIZE // (1024*1024)}MB")
 
     file_type = detect_file_type(file.filename, file.content_type or "application/octet-stream")
+
+    # Validate content matches claimed type (magic bytes check)
+    if not validate_file_content(content, file_type):
+        raise ValidationException(detail=f"File content does not match claimed type: {file_type}")
+
     checksum = compute_sha256(content)
     storage_path = generate_storage_path(file.filename)
     mime_type = file.content_type or "application/octet-stream"
@@ -369,6 +377,9 @@ async def upload_document(
         doc.tags = tag_list
 
     await db.commit()
+
+    logger.info("Document uploaded: doc_id=%d name=%s size=%d user_id=%d",
+                doc.id, file.filename, file_size, current_user.id)
 
     # Fire-and-forget text extraction for intelligence pipeline
     doc_id_for_extract = doc.id
@@ -468,6 +479,13 @@ async def complete_chunked_upload(
         raise ValidationException(detail="No data received")
 
     file_type = detect_file_type(data.filename, "application/octet-stream")
+
+    # Validate content matches claimed type
+    if not is_allowed_file(data.filename):
+        raise ValidationException(detail=f"File type not allowed: {data.filename}")
+    if not validate_file_content(merged_data, file_type):
+        raise ValidationException(detail=f"File content does not match claimed type: {file_type}")
+
     checksum = compute_sha256(merged_data)
     storage_path = generate_storage_path(data.filename)
     mime_type = "application/octet-stream"
@@ -533,8 +551,8 @@ async def complete_chunked_upload(
 
     try:
         shutil.rmtree(tmp_dir)
-    except Exception:
-        pass
+    except OSError:
+        logger.warning("Failed to clean up temp dir: %s", tmp_dir, exc_info=True)
 
     return DocumentOut(
         id=doc.id,
@@ -565,8 +583,13 @@ async def list_categories(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    cached = await cache.get("documents:categories")
+    if cached:
+        return [CategoryOut(**item) for item in cached]
     categories = await document_service.get_document_categories(db)
-    return [CategoryOut.model_validate(c) for c in categories]
+    cat_list = [CategoryOut.model_validate(c) for c in categories]
+    await cache.set("documents:categories", [c.model_dump() for c in cat_list], ttl=600)
+    return cat_list
 
 
 @router.post("/categories", response_model=CategoryOut)
@@ -576,6 +599,7 @@ async def create_category(
     db: AsyncSession = Depends(get_db),
 ):
     cat = await document_service.create_category(db, data)
+    await cache.delete("documents:categories")
     return CategoryOut.model_validate(cat)
 
 
@@ -587,6 +611,7 @@ async def update_category(
     db: AsyncSession = Depends(get_db),
 ):
     cat = await document_service.update_category(db, cat_id, data)
+    await cache.delete("documents:categories")
     return CategoryOut.model_validate(cat)
 
 
@@ -597,6 +622,7 @@ async def delete_category(
     db: AsyncSession = Depends(get_db),
 ):
     await document_service.delete_category(db, cat_id)
+    await cache.delete("documents:categories")
     return {"detail": "Category deleted"}
 
 
@@ -607,8 +633,13 @@ async def list_tags(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    cached = await cache.get("documents:tags")
+    if cached:
+        return [TagOut(**item) for item in cached]
     tags = await document_service.get_tags(db)
-    return [TagOut.model_validate(t) for t in tags]
+    tag_list = [TagOut.model_validate(t) for t in tags]
+    await cache.set("documents:tags", [t.model_dump() for t in tag_list], ttl=600)
+    return tag_list
 
 
 @router.post("/tags", response_model=TagOut)
@@ -618,6 +649,7 @@ async def create_tag(
     db: AsyncSession = Depends(get_db),
 ):
     tag = await document_service.create_tag(db, data)
+    await cache.delete("documents:tags")
     return TagOut.model_validate(tag)
 
 
@@ -628,6 +660,7 @@ async def delete_tag(
     db: AsyncSession = Depends(get_db),
 ):
     await document_service.delete_tag(db, tag_id)
+    await cache.delete("documents:tags")
     return {"detail": "Tag deleted"}
 
 
@@ -683,11 +716,13 @@ async def download_document(
     if data is None:
         raise NotFoundException(resource="File data")
 
+    import urllib.parse
+    safe_filename = urllib.parse.quote(doc.original_name, safe='')
     return StreamingResponse(
         BytesIO(data),
         media_type=doc.mime_type or "application/octet-stream",
         headers={
-            "Content-Disposition": f'attachment; filename="{doc.original_name}"',
+            "Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}",
         },
     )
 
@@ -703,10 +738,10 @@ async def get_preview_url(
 
     preview_pdf_path = getattr(doc, 'preview_pdf_path', None)
     if preview_pdf_path:
-        url = minio_client.get_presigned_url(preview_pdf_path)
+        url = minio_client.get_presigned_url(preview_pdf_path, expires=600)
         return {"url": url, "status": "ready"}
     else:
-        url = minio_client.get_presigned_url(doc.storage_path)
+        url = minio_client.get_presigned_url(doc.storage_path, expires=600)
         return {"url": url, "status": "ready", "is_original": True}
 
 
@@ -750,7 +785,7 @@ async def get_preview_text(
                         "can_generate_html": True,
                     }
             except Exception:
-                pass  # Fall through to text extraction
+                logger.debug("HTML preview download failed for doc_id=%d, falling through to text", doc_id, exc_info=True)
 
     # ---- Priority 2: Extracted text ----
     content = None
@@ -765,7 +800,7 @@ async def get_preview_text(
                 if extracted:
                     content = extracted
         except Exception:
-            pass
+            logger.debug("Text extraction from storage failed for doc_id=%d", doc_id, exc_info=True)
 
     if content:
         is_markdown = file_type in ("md", "markdown", "mdown")
@@ -858,9 +893,17 @@ async def upload_new_version(
     if not file.filename:
         raise ValidationException(detail="File name is required")
 
+    file_type_detected = detect_file_type(file.filename, file.content_type or "application/octet-stream")
+    if not is_allowed_file(file.filename):
+        raise ValidationException(detail=f"File type not allowed: {file.filename}")
+
     content = await file.read()
     if not content:
         raise ValidationException(detail="Empty file")
+
+    # Validate content matches claimed type
+    if not validate_file_content(content, file_type_detected):
+        raise ValidationException(detail=f"File content does not match claimed type: {file_type_detected}")
 
     settings = __import__('app.config', fromlist=['get_settings']).get_settings()
     if len(content) > settings.MAX_FILE_SIZE:
@@ -877,7 +920,7 @@ async def upload_new_version(
     file_info = {
         "storage_path": storage_path,
         "file_size": len(content),
-        "file_type": detect_file_type(file.filename, file.content_type or "application/octet-stream"),
+        "file_type": file_type_detected,
         "mime_type": file.content_type or "application/octet-stream",
         "checksum": checksum,
     }
@@ -921,8 +964,14 @@ async def lock_document(
     # Verify document exists and user has access
     await document_service.get_document(db, doc_id, current_user_dict)
 
-    lock = await lock_service.lock_document(db, doc_id, current_user.id)
-    return {"detail": "Document locked", "expires_at": lock.expires_at.isoformat()}
+    lock_record = await lock_service.lock_document(db, doc_id, current_user.id)
+    return LockStatusOut(
+        is_locked=True,
+        locked_by=current_user.id,
+        locked_by_name=current_user.real_name,
+        locked_at=lock_record.created_at.isoformat() if lock_record.created_at else None,
+        expires_at=lock_record.expires_at.isoformat() if lock_record.expires_at else None,
+    )
 
 
 @router.delete("/{doc_id}/lock")
@@ -935,8 +984,15 @@ async def unlock_document(
     # Verify document exists and user has access
     await document_service.get_document(db, doc_id, current_user_dict)
 
-    await lock_service.unlock_document(db, doc_id, current_user.id)
-    return {"detail": "Document unlocked"}
+    role_codes = [r.role_code for r in (current_user.roles or []) if hasattr(r, 'role_code')]
+    await lock_service.unlock_document(db, doc_id, current_user.id, role_codes)
+    return LockStatusOut(
+        is_locked=False,
+        locked_by=None,
+        locked_by_name=None,
+        locked_at=None,
+        expires_at=None,
+    )
 
 
 @router.get("/{doc_id}/lock-status", response_model=LockStatusOut)

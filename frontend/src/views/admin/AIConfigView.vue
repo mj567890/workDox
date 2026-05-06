@@ -182,9 +182,13 @@ async function fetchRagConfig() {
 }
 
 async function toggleProvider(row: AIProvider, val: boolean) {
-  await systemApi.updateProvider(row.id, { is_enabled: val })
-  row.is_enabled = val
-  ElMessage.success(val ? '已启用' : '已禁用')
+  try {
+    await systemApi.updateProvider(row.id, { is_enabled: val })
+    row.is_enabled = val
+    ElMessage.success(val ? '已启用' : '已禁用')
+  } catch {
+    // Error handled by API interceptor; revert optimistic UI
+  }
 }
 
 function openCreate() {

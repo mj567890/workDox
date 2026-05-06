@@ -3,9 +3,9 @@ services:
     image: pgvector/pgvector:pg15
     container_name: odms-db
     environment:
-      POSTGRES_USER: odms
-      POSTGRES_PASSWORD: odms123
-      POSTGRES_DB: odms
+      POSTGRES_USER: ${POSTGRES_USER:-odms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-odms123}
+      POSTGRES_DB: ${POSTGRES_DB:-odms}
     ports:
       - "5432:5432"
     volumes:
@@ -51,8 +51,8 @@ services:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: odms-minio
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -81,18 +81,18 @@ services:
       dockerfile: Dockerfile
     container_name: odms-backend
     environment:
-      DATABASE_URL: postgresql+asyncpg://odms:odms123@db:5432/odms
-      DATABASE_URL_SYNC: postgresql://odms:odms123@db:5432/odms
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/2
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-      MINIO_BUCKET: odms-documents
-      MINIO_PUBLIC_ENDPOINT: 10.10.50.205:9000  # Browser-accessible address
-      MINIO_SECURE: "false"
-      JWT_SECRET_KEY: change-me-in-production
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://odms:odms123@db:5432/odms}
+      DATABASE_URL_SYNC: ${DATABASE_URL_SYNC:-postgresql://odms:odms123@db:5432/odms}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/1}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-odms-documents}
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-10.10.50.205:9000}
+      MINIO_SECURE: "${MINIO_SECURE:-false}"
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
     ports:
       - "8000:8000"
     depends_on:
@@ -127,17 +127,17 @@ services:
     container_name: odms-celery-worker
     command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=2
     environment:
-      DATABASE_URL: postgresql+asyncpg://odms:odms123@db:5432/odms
-      DATABASE_URL_SYNC: postgresql://odms:odms123@db:5432/odms
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/1
-      CELERY_RESULT_BACKEND: redis://redis:6379/2
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-      MINIO_BUCKET: odms-documents
-      MINIO_PUBLIC_ENDPOINT: 10.10.50.205:9000
-      MINIO_SECURE: "false"
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://odms:odms123@db:5432/odms}
+      DATABASE_URL_SYNC: ${DATABASE_URL_SYNC:-postgresql://odms:odms123@db:5432/odms}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/1}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-odms-documents}
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-10.10.50.205:9000}
+      MINIO_SECURE: "${MINIO_SECURE:-false}"
     depends_on:
       db:
         condition: service_healthy

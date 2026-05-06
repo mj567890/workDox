@@ -9,6 +9,9 @@
 
     <el-card shadow="never">
       <el-table :data="items" v-loading="loading" stripe>
+        <template #empty>
+          <el-empty description="暂无分类数据" />
+        </template>
         <el-table-column prop="name" label="分类名称" width="180" />
         <el-table-column prop="code" label="分类代码" width="200" />
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
@@ -30,10 +33,10 @@
     <el-dialog v-model="showDialog" :title="isEdit ? '编辑分类' : '创建分类'" width="450px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="分类名称" prop="name">
-          <el-input v-model="form.name" />
+          <el-input v-model="form.name" maxlength="100" show-word-limit />
         </el-form-item>
         <el-form-item label="分类代码" prop="code">
-          <el-input v-model="form.code" :disabled="isEdit" />
+          <el-input v-model="form.code" :disabled="isEdit" maxlength="50" show-word-limit />
         </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="form.description" type="textarea" />

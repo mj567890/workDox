@@ -6,8 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field
 class LoginRequest(BaseModel):
     """Login credentials request."""
 
-    username: str = Field(..., description="Username")
-    password: str = Field(..., description="Password")
+    username: str = Field(..., min_length=2, max_length=64, description="Username")
+    password: str = Field(..., min_length=4, max_length=128, description="Password")
 
 
 class TokenResponse(BaseModel):

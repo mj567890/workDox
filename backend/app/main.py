@@ -2,7 +2,11 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
 from app.config import get_settings
+from app.limiter import limiter
 
 # Pre-load all models to resolve cross-file relationships
 import app.models  # noqa: F401
@@ -26,7 +30,8 @@ async def lifespan(app: FastAPI):
                 import logging
                 logging.getLogger("uvicorn").info(f"Seeded {n} preset task templates")
         except Exception:
-            pass
+            import logging
+            logging.getLogger("uvicorn").warning("Failed to seed task templates on startup", exc_info=True)
     yield
 
 
@@ -43,6 +48,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.include_router(api_router, prefix="/api/v1")
 

@@ -62,8 +62,9 @@ export interface PaginatedResponse<T> {
 }
 
 export interface LockStatus {
-  locked: boolean
-  locked_by: string | null
+  is_locked: boolean
+  locked_by: number | null
+  locked_by_name: string | null
   locked_at: string | null
   expires_at: string | null
 }

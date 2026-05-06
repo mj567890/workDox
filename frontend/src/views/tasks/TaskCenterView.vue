@@ -125,15 +125,23 @@ async function handleBatchComplete() {
 }
 
 async function handleStart(id: number) {
-  await taskStore.updateTask(id, { status: 'in_progress' })
-  ElMessage.success('任务已开始')
-  fetchData()
+  try {
+    await taskStore.updateTask(id, { status: 'in_progress' })
+    ElMessage.success('任务已开始')
+    fetchData()
+  } catch {
+    // Error handled by API interceptor
+  }
 }
 
 async function handleComplete(id: number) {
-  await taskStore.updateTask(id, { status: 'completed' })
-  ElMessage.success('任务已完成')
-  fetchData()
+  try {
+    await taskStore.updateTask(id, { status: 'completed' })
+    ElMessage.success('任务已完成')
+    fetchData()
+  } catch {
+    // Error handled by API interceptor
+  }
 }
 
 async function handleExport(command: string) {

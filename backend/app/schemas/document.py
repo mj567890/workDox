@@ -20,8 +20,8 @@ class TagResponse(BaseModel):
 class TagCreate(BaseModel):
     """Create a new tag."""
 
-    name: str = Field(..., description="Tag name")
-    color: str = Field(default="#409EFF", description="Tag color (hex code)")
+    name: str = Field(..., min_length=1, max_length=50, description="Tag name")
+    color: str = Field(default="#409EFF", max_length=20, description="Tag color (hex code)")
 
 
 class CategoryResponse(BaseModel):
@@ -41,17 +41,17 @@ class CategoryResponse(BaseModel):
 class CategoryCreate(BaseModel):
     """Create a new document category."""
 
-    name: str = Field(..., description="Category name")
-    code: str = Field(..., description="Unique category code")
-    description: str | None = Field(default=None, description="Optional description")
+    name: str = Field(..., min_length=1, max_length=100, description="Category name")
+    code: str = Field(..., min_length=1, max_length=50, description="Unique category code")
+    description: str | None = Field(default=None, max_length=500, description="Optional description")
     sort_order: int = Field(default=0, description="Sort order (lower = first)")
 
 
 class CategoryUpdate(BaseModel):
     """Update an existing document category (partial)."""
 
-    name: str | None = Field(default=None, description="New category name")
-    description: str | None = Field(default=None, description="New description")
+    name: str | None = Field(default=None, max_length=100, description="New category name")
+    description: str | None = Field(default=None, max_length=500, description="New description")
     sort_order: int | None = Field(default=None, description="New sort order")
 
 

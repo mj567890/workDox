@@ -28,7 +28,7 @@
           <div v-for="item in results" :key="`${item.type}-${item.id}`" class="result-item" @click="navigateTo(item)">
             <div class="result-title">
               <el-tag size="small" :type="item.type === 'document' ? '' : 'success'">{{ item.type === 'document' ? '文档' : '事项' }}</el-tag>
-              <span class="result-name" v-html="item.highlight || item.title"></span>
+              <span class="result-name" v-html="sanitize(item.highlight || item.title)"></span>
             </div>
             <div class="result-desc" v-if="item.description">{{ item.description }}</div>
           </div>
@@ -54,6 +54,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Search } from '@element-plus/icons-vue'
 import { searchApi } from '@/api/search'
+import { sanitize } from '@/composables/useSanitize'
 
 const route = useRoute()
 const router = useRouter()
@@ -68,8 +69,18 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
 
+// AbortController to cancel in-flight requests and prevent stale results
+let abortController: AbortController | null = null
+
 async function handleSearch() {
   if (!keyword.value.trim()) return
+
+  // Cancel any previous in-flight search
+  if (abortController) {
+    abortController.abort()
+  }
+  abortController = new AbortController()
+
   loading.value = true
   searched.value = true
   try {
@@ -79,9 +90,14 @@ async function handleSearch() {
       file_type: filterFileType.value || undefined,
       page: page.value,
       page_size: pageSize.value,
-    })
+    }, { signal: abortController.signal })
     results.value = res.items
     total.value = res.total
+  } catch (err: any) {
+    if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
+      return // Ignore aborted requests
+    }
+    // Other errors handled by API interceptor
   } finally {
     loading.value = false
   }

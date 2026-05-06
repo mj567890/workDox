@@ -9,6 +9,9 @@
 
     <el-card shadow="never">
       <el-table :data="items" v-loading="loading" stripe>
+        <template #empty>
+          <el-empty description="暂无标签数据" />
+        </template>
         <el-table-column label="颜色" width="80">
           <template #default="{ row }">
             <div :style="{ width: '24px', height: '24px', borderRadius: '4px', backgroundColor: row.color }" />
@@ -28,7 +31,7 @@
     <el-dialog v-model="showDialog" :title="isEdit ? '编辑标签' : '创建标签'" width="420px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="标签名称" prop="name">
-          <el-input v-model="form.name" />
+          <el-input v-model="form.name" maxlength="50" show-word-limit />
         </el-form-item>
         <el-form-item label="颜色" prop="color">
           <el-color-picker v-model="form.color" show-alpha />

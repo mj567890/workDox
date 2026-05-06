@@ -23,7 +23,7 @@ class Tag(Base, TimestampMixin):
     __tablename__ = "tag"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(50), nullable=False)
+    name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     color: Mapped[str] = mapped_column(String(20), default="#409EFF")
 
     documents: Mapped[list["Document"]] = relationship("Document", secondary="document_tag", back_populates="tags")

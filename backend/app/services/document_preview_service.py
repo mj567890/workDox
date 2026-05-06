@@ -1,9 +1,13 @@
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.document import Document
 from app.core.storage import minio_client
 from app.core.exceptions import NotFoundException
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentPreviewService:
@@ -43,4 +47,4 @@ class DocumentPreviewService:
             from app.tasks.preview_tasks import convert_to_pdf
             convert_to_pdf.delay(doc_id, storage_path, file_type)
         except Exception:
-            pass
+            logger.warning("Failed to dispatch preview conversion task for doc_id=%d", doc_id, exc_info=True)

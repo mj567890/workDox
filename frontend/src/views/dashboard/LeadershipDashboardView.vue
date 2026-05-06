@@ -165,7 +165,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useDashboardStore } from '@/stores/dashboard'
 import { dashboardApi } from '@/api/dashboard'
 import StatusTag from '@/components/common/StatusTag.vue'
@@ -182,6 +182,8 @@ const typeChartRef = ref<HTMLElement>()
 const trendChartRef = ref<HTMLElement>()
 const deptChartRef = ref<HTMLElement>()
 const priorityChartRef = ref<HTMLElement>()
+
+const charts: echarts.ECharts[] = []
 
 // Drill-down
 const drillDownVisible = ref(false)
@@ -217,9 +219,14 @@ onMounted(async () => {
   }
 })
 
+onUnmounted(() => {
+  charts.forEach(c => c.dispose())
+})
+
 function renderProgressChart(data: any) {
   if (!progressChartRef.value) return
   const chart = echarts.init(progressChartRef.value)
+  charts.push(chart)
   chart.setOption({
     tooltip: { trigger: 'axis' },
     legend: { data: ['已完成', '进行中', '待开始'] },
@@ -236,6 +243,7 @@ function renderProgressChart(data: any) {
 function renderTypeChart(data: any[]) {
   if (!typeChartRef.value) return
   const chart = echarts.init(typeChartRef.value)
+  charts.push(chart)
   chart.setOption({
     tooltip: { trigger: 'item' },
     series: [{
@@ -250,6 +258,7 @@ function renderTypeChart(data: any[]) {
 function renderTrendChart(data: any[]) {
   if (!trendChartRef.value || !data?.length) return
   const chart = echarts.init(trendChartRef.value)
+  charts.push(chart)
   const months = data.map((d: any) => d.month)
   chart.setOption({
     tooltip: { trigger: 'axis' },
@@ -268,6 +277,7 @@ function renderTrendChart(data: any[]) {
 function renderDeptChart(data: any[]) {
   if (!deptChartRef.value || !data?.length) return
   const chart = echarts.init(deptChartRef.value)
+  charts.push(chart)
   chart.setOption({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     xAxis: {
@@ -305,6 +315,7 @@ function renderDeptChart(data: any[]) {
 function renderPriorityChart(data: any[]) {
   if (!priorityChartRef.value || !data?.length) return
   const chart = echarts.init(priorityChartRef.value)
+  charts.push(chart)
   const priorityLabels: Record<string, string> = { low: '低', normal: '普通', high: '高', urgent: '紧急' }
   const priorityColors: Record<string, string> = { low: '#909399', normal: '#409EFF', high: '#E6A23C', urgent: '#F56C6C' }
   chart.setOption({

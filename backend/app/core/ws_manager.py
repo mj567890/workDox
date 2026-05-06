@@ -1,11 +1,14 @@
+import logging
 from typing import Dict
 
 from fastapi import WebSocket
+from starlette.websockets import WebSocketDisconnect
 import redis.asyncio as aioredis
 
 from app.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class WSManager:
@@ -29,7 +32,8 @@ class WSManager:
         if ws:
             try:
                 await ws.send_json(message)
-            except Exception:
+            except (WebSocketDisconnect, RuntimeError):
+                logger.debug("WebSocket send failed for user_id=%d, disconnecting", user_id)
                 self.disconnect(user_id)
 
     async def broadcast(self, message: dict, user_ids: list[int] = None):
@@ -37,7 +41,8 @@ class WSManager:
             if user_ids is None or uid in user_ids:
                 try:
                     await ws.send_json(message)
-                except Exception:
+                except (WebSocketDisconnect, RuntimeError):
+                    logger.debug("WebSocket broadcast send failed for user_id=%d, disconnecting", uid)
                     self.disconnect(uid)
 
 

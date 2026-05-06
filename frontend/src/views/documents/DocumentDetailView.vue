@@ -7,10 +7,10 @@
     </el-page-header>
 
     <template v-if="doc">
-      <el-alert v-if="lockStatus?.locked && lockStatus.locked_by !== authStore.user?.real_name"
-        :title="`文档正在被 ${lockStatus.locked_by} 编辑中`" type="warning" show-icon :closable="false" class="mb-20" />
+      <el-alert v-if="lockStatus?.is_locked && lockStatus.locked_by_name !== authStore.user?.real_name"
+        :title="`文档正在被 ${lockStatus.locked_by_name} 编辑中`" type="warning" show-icon :closable="false" class="mb-20" />
 
-      <el-alert v-if="lockStatus?.locked && lockStatus.locked_by === authStore.user?.real_name"
+      <el-alert v-if="lockStatus?.is_locked && lockStatus.locked_by_name === authStore.user?.real_name"
         title="你正在编辑此文档。编辑完成后请上传新版本。" type="success" show-icon :closable="false" class="mb-20">
         <template #default>
           <el-button type="primary" size="small" @click="showVersionUpload = true">上传新版本</el-button>
@@ -98,7 +98,7 @@
           <el-card header="版本历史" shadow="never" class="mt-20">
             <div class="version-header">
               <el-button type="primary" size="small" @click="handleDownload">下载文档</el-button>
-              <el-button v-if="canEdit && !lockStatus?.locked" size="small" @click="handleLockAndDownload">
+              <el-button v-if="canEdit && !lockStatus?.is_locked" size="small" @click="handleLockAndDownload">
                 <el-icon><Lock /></el-icon>锁定并下载
               </el-button>
               <el-button v-if="canEdit" size="small" @click="showVersionUpload = true">上传新版本</el-button>
@@ -135,7 +135,7 @@
           <el-card header="预览" shadow="never">
             <div class="preview-area" v-if="previewStatus === 'ready'">
               <iframe v-if="previewFormat === 'html'" :srcdoc="previewContent" class="preview-iframe" sandbox="allow-same-origin" />
-              <div v-else-if="previewFormat === 'markdown'" v-html="previewHtml" class="preview-content markdown-body"></div>
+              <div v-else-if="previewFormat === 'markdown'" v-html="sanitize(previewHtml)" class="preview-content markdown-body"></div>
               <pre v-else class="preview-content preview-text">{{ previewContent }}</pre>
               <div v-if="previewFormat !== 'html' && canGenerateHtml" class="mt-10 text-center">
                 <el-button size="small" type="warning" :loading="generatingPreview" @click="handleGeneratePreview">
@@ -156,8 +156,8 @@
           </el-card>
 
           <el-card header="锁定状态" shadow="never" class="mt-20">
-            <div v-if="lockStatus?.locked" class="lock-info">
-              <p><el-icon><Lock /></el-icon> 锁定者: {{ lockStatus.locked_by }}</p>
+            <div v-if="lockStatus?.is_locked" class="lock-info">
+              <p><el-icon><Lock /></el-icon> 锁定者: {{ lockStatus.locked_by_name }}</p>
               <p>锁定时间: {{ formatDate(lockStatus.locked_at) }}</p>
               <p>过期时间: {{ formatDate(lockStatus.expires_at) }}</p>
             </div>
@@ -214,7 +214,7 @@
               </el-table-column>
               <el-table-column prop="headline" label="匹配摘要" min-width="250">
                 <template #default="{ row }">
-                  <span v-if="row.headline" v-html="row.headline" style="font-size: 12px; color: #666"></span>
+                  <span v-if="row.headline" v-html="sanitize(row.headline)" style="font-size: 12px; color: #666"></span>
                   <span v-else style="color: #ccc">-</span>
                 </template>
               </el-table-column>
@@ -269,6 +269,7 @@ import DocumentRelationGraph from '@/components/documents/DocumentRelationGraph.
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { aiApi } from '@/api/ai'
+import { sanitize } from '@/composables/useSanitize'
 
 const route = useRoute()
 const docStore = useDocumentStore()

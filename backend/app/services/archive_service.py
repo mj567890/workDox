@@ -1,4 +1,8 @@
+import logging
+
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 
 class ArchiveService:
@@ -20,4 +24,4 @@ class ArchiveService:
             from app.tasks.archive_tasks import extract_archive
             extract_archive.delay(archive_doc_id, storage_path, file_type, user_id, matter_id)
         except Exception:
-            pass
+            logger.warning("Failed to dispatch archive extraction task for doc_id=%d", archive_doc_id, exc_info=True)

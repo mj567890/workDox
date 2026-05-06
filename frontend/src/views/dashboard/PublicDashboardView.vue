@@ -144,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import * as echarts from 'echarts'
 import { publicDashboardApi, type PublicOverview, type ActiveTaskItem, type RiskAlertItem, type PublicAnalytics } from '@/api/publicDashboard'
 
@@ -159,6 +159,8 @@ const templateChartRef = ref<HTMLElement>()
 const trendChartRef = ref<HTMLElement>()
 const statusChartRef = ref<HTMLElement>()
 const deptChartRef = ref<HTMLElement>()
+
+const charts: echarts.ECharts[] = []
 
 onMounted(async () => {
   try {
@@ -184,6 +186,10 @@ onMounted(async () => {
   if (analytics.value?.departments?.length) renderDeptChart()
 })
 
+onUnmounted(() => {
+  charts.forEach(c => c.dispose())
+})
+
 function statusTag(s: string) {
   const map: Record<string, string> = { pending: 'info', active: 'warning', completed: 'success', cancelled: 'danger' }
   return map[s] || 'info'
@@ -199,6 +205,7 @@ function statusLabel(s: string) {
 function renderFunnelChart() {
   if (!funnelChartRef.value) return
   const chart = echarts.init(funnelChartRef.value)
+  charts.push(chart)
   const data = analytics.value!.stage_funnel
   chart.setOption({
     tooltip: { trigger: 'item', formatter: '{b}: {c} 个任务' },
@@ -214,6 +221,7 @@ function renderFunnelChart() {
 function renderTemplateChart() {
   if (!templateChartRef.value) return
   const chart = echarts.init(templateChartRef.value)
+  charts.push(chart)
   const colors = ['#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399', '#00D4FF', '#9C27B0']
   chart.setOption({
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
@@ -231,6 +239,7 @@ function renderTemplateChart() {
 function renderTrendChart() {
   if (!trendChartRef.value) return
   const chart = echarts.init(trendChartRef.value)
+  charts.push(chart)
   const data = analytics.value!.monthly_trend
   chart.setOption({
     tooltip: { trigger: 'axis' },
@@ -248,6 +257,7 @@ function renderTrendChart() {
 function renderStatusChart() {
   if (!statusChartRef.value) return
   const chart = echarts.init(statusChartRef.value)
+  charts.push(chart)
   const colors: Record<string, string> = { pending: '#909399', active: '#409EFF', completed: '#67C23A', cancelled: '#F56C6C' }
   chart.setOption({
     tooltip: { trigger: 'item' },
@@ -265,6 +275,7 @@ function renderStatusChart() {
 function renderDeptChart() {
   if (!deptChartRef.value) return
   const chart = echarts.init(deptChartRef.value)
+  charts.push(chart)
   const data = [...analytics.value!.departments].reverse()
   chart.setOption({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },

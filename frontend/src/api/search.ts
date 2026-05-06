@@ -12,5 +12,6 @@ export interface SearchResult {
 }
 
 export const searchApi = {
-  search: (params: Record<string, any>) => get<PaginatedResponse<SearchResult>>('/search', params),
+  search: (params: Record<string, any>, config?: Record<string, any>) =>
+    get<PaginatedResponse<SearchResult>>('/search', params, config),
 }

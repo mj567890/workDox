@@ -59,11 +59,14 @@ class MinIOClient:
         except S3Error:
             return None
 
-    def get_presigned_url(self, object_name: str, expires: int = 3600) -> Optional[str]:
+    def get_presigned_url(self, object_name: str, expires: int = 900) -> Optional[str]:
         """Generate a presigned URL for browser access.
 
         Uses the public endpoint if configured, so the URL is reachable
         from the user's browser (not just inside Docker network).
+
+        Default TTL is 15 minutes (900s). Download links may request longer
+        if needed (e.g. 3600s for large downloads).
         """
         try:
             signer = self._public_client or self.client

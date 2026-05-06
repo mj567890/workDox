@@ -11,15 +11,17 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+# Module-level sync engine for Celery worker reuse
+settings = get_settings()
+_sync_engine = create_engine(settings.DATABASE_URL_SYNC, pool_pre_ping=True)
+
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def embed_document_task(self, doc_id: int):
     """Background task: generate embeddings for a document."""
-    settings = get_settings()
-    sync_engine = create_engine(settings.DATABASE_URL_SYNC)
 
     try:
-        with Session(sync_engine) as db:
+        with Session(_sync_engine) as db:
             result = db.execute(
                 text("SELECT extracted_text FROM document WHERE id = :did"),
                 {"did": doc_id},
@@ -61,10 +63,9 @@ def embed_document_task(self, doc_id: int):
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
 def summarize_document_task(self, doc_id: int):
     """Background task: auto-summarize a document after upload."""
-    settings = get_settings()
 
     try:
-        with Session(create_engine(settings.DATABASE_URL_SYNC)) as db:
+        with Session(_sync_engine) as db:
             result = db.execute(
                 text("SELECT extracted_text, original_name FROM document WHERE id = :did"),
                 {"did": doc_id},
@@ -86,7 +87,7 @@ def summarize_document_task(self, doc_id: int):
             loop.close()
 
         # Store summary in document record
-        with Session(create_engine(settings.DATABASE_URL_SYNC)) as db:
+        with Session(_sync_engine) as db:
             db.execute(
                 text("UPDATE document SET summary = :summary WHERE id = :did"),
                 {"summary": summary[:2000], "did": doc_id},

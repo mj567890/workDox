@@ -105,6 +105,7 @@ import { ElMessage } from 'element-plus'
 const route = useRoute()
 const store = useTaskMgmtStore()
 const loading = ref(false)
+const actionLoading = ref('')
 const board = computed(() => store.currentBoard)
 
 const uploadDialog = reactive({ visible: false, slotId: 0, stageId: 0, documentId: 1, maturity: 'draft', maturityNote: '' })
@@ -169,41 +170,76 @@ function openWaive(slot: any) {
 }
 
 async function handleUpload() {
-  await taskInstancesApi.uploadToSlot(taskId.value, uploadDialog.stageId, uploadDialog.slotId, {
-    document_id: uploadDialog.documentId,
-    maturity: uploadDialog.maturity,
-    maturity_note: uploadDialog.maturityNote || undefined,
-  })
-  uploadDialog.visible = false
-  ElMessage.success('上传成功')
-  await store.fetchBoard(taskId.value)
+  actionLoading.value = 'upload'
+  try {
+    await taskInstancesApi.uploadToSlot(taskId.value, uploadDialog.stageId, uploadDialog.slotId, {
+      document_id: uploadDialog.documentId,
+      maturity: uploadDialog.maturity,
+      maturity_note: uploadDialog.maturityNote || undefined,
+    })
+    uploadDialog.visible = false
+    ElMessage.success('上传成功')
+    await store.fetchBoard(taskId.value)
+  } catch {
+    // Error handled by API interceptor
+  } finally {
+    actionLoading.value = ''
+  }
 }
 
 async function handleRemoveDoc(slot: any) {
-  const stageId = board.value?.stages.find(s => s.slots.some(sl => sl.id === slot.id))?.id || 0
-  await taskInstancesApi.removeSlotDoc(taskId.value, stageId, slot.id)
-  ElMessage.success('已移除')
-  await store.fetchBoard(taskId.value)
+  actionLoading.value = 'remove'
+  try {
+    const stageId = board.value?.stages.find(s => s.slots.some(sl => sl.id === slot.id))?.id || 0
+    await taskInstancesApi.removeSlotDoc(taskId.value, stageId, slot.id)
+    ElMessage.success('已移除')
+    await store.fetchBoard(taskId.value)
+  } catch {
+    // Error handled by API interceptor
+  } finally {
+    actionLoading.value = ''
+  }
 }
 
 async function handleWaive() {
-  await taskInstancesApi.waiveSlot(taskId.value, waiveDialog.stageId, waiveDialog.slotId, waiveDialog.reason)
-  waiveDialog.visible = false
-  ElMessage.success('已豁免')
-  await store.fetchBoard(taskId.value)
+  actionLoading.value = 'waive'
+  try {
+    await taskInstancesApi.waiveSlot(taskId.value, waiveDialog.stageId, waiveDialog.slotId, waiveDialog.reason)
+    waiveDialog.visible = false
+    ElMessage.success('已豁免')
+    await store.fetchBoard(taskId.value)
+  } catch {
+    // Error handled by API interceptor
+  } finally {
+    actionLoading.value = ''
+  }
 }
 
 async function handleUnwaive(slot: any) {
-  const stageId = board.value?.stages.find(s => s.slots.some(sl => sl.id === slot.id))?.id || 0
-  await taskInstancesApi.unwaiveSlot(taskId.value, stageId, slot.id)
-  ElMessage.success('已撤销豁免')
-  await store.fetchBoard(taskId.value)
+  actionLoading.value = 'unwaive'
+  try {
+    const stageId = board.value?.stages.find(s => s.slots.some(sl => sl.id === slot.id))?.id || 0
+    await taskInstancesApi.unwaiveSlot(taskId.value, stageId, slot.id)
+    ElMessage.success('已撤销豁免')
+    await store.fetchBoard(taskId.value)
+  } catch {
+    // Error handled by API interceptor
+  } finally {
+    actionLoading.value = ''
+  }
 }
 
 async function handleAdvance() {
-  await taskInstancesApi.advance(taskId.value)
-  ElMessage.success('阶段已推进')
-  await store.fetchBoard(taskId.value)
+  actionLoading.value = 'advance'
+  try {
+    await taskInstancesApi.advance(taskId.value)
+    ElMessage.success('阶段已推进')
+    await store.fetchBoard(taskId.value)
+  } catch {
+    // Error handled by API interceptor
+  } finally {
+    actionLoading.value = ''
+  }
 }
 </script>
 

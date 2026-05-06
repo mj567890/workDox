@@ -1,8 +1,11 @@
+import logging
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import Header
 from jinja2 import Environment, BaseLoader
+
+logger = logging.getLogger(__name__)
 
 # 优先级标签映射
 PRIORITY_LABELS = {
@@ -150,8 +153,8 @@ class EmailSender:
                     self.from_addr, [to_email] + (cc or []), msg.as_string()
                 )
             return True
-        except Exception as exc:
-            print(f"Email send failed: {exc}")
+        except (smtplib.SMTPException, ConnectionError, TimeoutError, OSError) as exc:
+            logger.warning("Email send failed to %s: %s", to_email, exc)
             return False
 
     def send_sync(self, to_email: str, template_name: str, context: dict, cc: list = None):

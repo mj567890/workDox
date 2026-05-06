@@ -14,6 +14,15 @@ from app.models.ai_provider import AIProvider
 router = APIRouter()
 
 
+def _mask_api_key(key: str) -> str:
+    """Mask API key showing only last 4 characters for security."""
+    if not key:
+        return ""
+    if len(key) <= 4:
+        return "****"
+    return "****" + key[-4:]
+
+
 # ── RAG config ───────────────────────────────────────────────────
 
 RAG_CONFIG_DEFAULTS: dict[str, dict] = {
@@ -138,7 +147,7 @@ async def get_ai_providers(
             "name": p.name,
             "provider_type": p.provider_type,
             "api_base": p.api_base,
-            "api_key": p.api_key,
+            "api_key": _mask_api_key(p.api_key),
             "model": p.model,
             "max_tokens": p.max_tokens,
             "temperature": p.temperature,

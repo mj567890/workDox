@@ -1,9 +1,13 @@
 """AI configuration reader — DB overrides with .env fallback."""
 
+import logging
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 async def get_ai_config(db: AsyncSession, key: str, env_default: str = "") -> str:
@@ -17,7 +21,7 @@ async def get_ai_config(db: AsyncSession, key: str, env_default: str = "") -> st
         if row:
             return row
     except Exception:
-        pass
+        logger.warning("Failed to read AI config '%s' from database, using env default", key, exc_info=True)
     return env_default
 
 

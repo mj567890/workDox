@@ -18,6 +18,9 @@
         default-expand-all
         stripe
       >
+        <template #empty>
+          <el-empty description="暂无部门数据" />
+        </template>
         <el-table-column prop="name" label="部门名称" min-width="200" />
         <el-table-column prop="code" label="部门编码" width="200" />
         <el-table-column label="操作" width="260" fixed="right">
@@ -49,7 +52,7 @@
         label-width="100px"
       >
         <el-form-item label="部门名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入部门名称" maxlength="50" show-word-limit />
+          <el-input v-model="form.name" placeholder="请输入部门名称" maxlength="100" show-word-limit />
         </el-form-item>
         <el-form-item label="部门编码" prop="code">
           <el-input v-model="form.code" placeholder="请输入部门编码" maxlength="50" />

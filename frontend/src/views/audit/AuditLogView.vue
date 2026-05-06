@@ -23,6 +23,9 @@
       </div>
 
       <el-table :data="logs" v-loading="loading" stripe>
+        <template #empty>
+          <el-empty description="暂无操作日志" />
+        </template>
         <el-table-column prop="user_name" label="操作人" width="100" />
         <el-table-column prop="operation_type" label="操作类型" width="120" />
         <el-table-column prop="target_type" label="目标类型" width="100" />
@@ -74,11 +77,15 @@ async function fetchData() {
     const params: Record<string, any> = {
       page: page.value,
       page_size: pageSize.value,
+      keyword: keyword.value || undefined,
       operation_type: filterType.value || undefined,
     }
     if (dateRange.value) {
-      params.start_date = dateRange.value[0].toISOString()
-      params.end_date = dateRange.value[1].toISOString()
+      params.date_from = dateRange.value[0].toISOString()
+      // Set end date to end of day to include all records on the last day
+      const endDate = new Date(dateRange.value[1])
+      endDate.setHours(23, 59, 59, 999)
+      params.date_to = endDate.toISOString()
     }
     const res = await auditApi.getList(params)
     logs.value = res.items
