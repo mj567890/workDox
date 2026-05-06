@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload

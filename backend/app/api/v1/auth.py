@@ -55,9 +55,9 @@ class UserInfoResponse(BaseModel):
 
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
-async def login(request: LoginRequest, http_request: Request, db: AsyncSession = Depends(get_db)):
-    client_ip = http_request.client.host if http_request.client else "unknown"
-    result = await AuthService().authenticate(db, request.username, request.password)
+async def login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    client_ip = request.client.host if request.client else "unknown"
+    result = await AuthService().authenticate(db, body.username, body.password)
     user = result["user"]
     logger.info("User login: username=%s user_id=%d ip=%s", user["username"], user["id"], client_ip)
     return TokenResponse(
@@ -71,7 +71,7 @@ async def login(request: LoginRequest, http_request: Request, db: AsyncSession =
 
 @router.post("/logout")
 @limiter.limit("10/minute")
-async def logout(current_user: User = Depends(get_current_user)):
+async def logout(request: Request, current_user: User = Depends(get_current_user)):
     return {"detail": "Logged out successfully"}
 
 
@@ -90,8 +90,8 @@ async def get_providers():
 
 @router.post("/ldap/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
-async def ldap_login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await LdapService().authenticate(db, request.username, request.password)
+async def ldap_login(body: LoginRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    result = await LdapService().authenticate(db, body.username, body.password)
     return TokenResponse(
         access_token=result["access_token"],
         token_type=result.get("token_type", "bearer"),
@@ -115,6 +115,7 @@ async def cas_authorize():
 @router.get("/sso/cas/callback")
 @limiter.limit("10/minute")
 async def cas_callback(
+    request: Request,
     ticket: str = Query(...),
     db: AsyncSession = Depends(get_db),
 ):
@@ -145,6 +146,7 @@ async def oauth2_authorize():
 @router.get("/oauth2/callback")
 @limiter.limit("10/minute")
 async def oauth2_callback(
+    request: Request,
     code: str = Query(...),
     state: str = Query(...),
     db: AsyncSession = Depends(get_db),
