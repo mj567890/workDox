@@ -268,8 +268,16 @@ If the server Python is ever upgraded to 3.14, be aware that:
 1. **`backend/requirements.txt`** -- Pinned `redis[hiredis]` from `>=5.0.0` to `==5.2.1`
 2. **`backend/Dockerfile`** -- Pinned `python:3.12-slim` to `python:3.12.13-slim`
 3. **`frontend/Dockerfile`** -- Pinned `node:20-alpine` to `node:20.19-alpine`, `nginx:alpine` to `nginx:1.27-alpine`
-4. **`docker-compose.yml`** -- Pinned `redis:7.4-alpine`, `minio/minio:RELEASE.2025-09-07T16-13-09Z`; added `MINIO_PUBLIC_ENDPOINT`, `MINIO_SECURE`, `JWT_SECRET_KEY` to container env
+4. **`docker-compose.yml`** -- Pinned `redis:7.4-alpine`, `minio/minio:RELEASE.2025-09-07T16-13-09Z`; added `MINIO_PUBLIC_ENDPOINT`, `MINIO_SECURE`, `JWT_SECRET_KEY` to container env; fixed backend healthcheck (curl -> Python urllib, since python:3.12-slim has no curl)
 5. **`backend/.env.example`** -- Fixed `SMTP_FROM_NAME` to match config.py default
+
+### Bonus Fix: Backend Healthcheck
+
+The backend Docker healthcheck used `curl -sf http://localhost:8000/health` but `python:3.12-slim` does not include `curl`. This meant the backend container ALWAYS reported unhealthy (even though the service ran fine). Replaced with `python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"` which uses only Python stdlib available in every Python image.
+
+### Known docker-compose Issue
+
+Docker-compose v1.29.2 is incompatible with Docker Engine 29.x images (OCI format -- `ContainerConfig` key missing). The `deploy.sh` script hits this on `up -d`. The workaround applied was: manually remove stale containers, then `up -d` (which skips recreation for running deps). A permanent fix would be upgrading to Docker Compose v2 plugin.
 
 ### Action Items (Recommended, Not Done)
 
