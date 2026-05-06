@@ -43,6 +43,17 @@ class Settings(BaseSettings):
     LDAP_ATTR_EMAIL: str = "mail"
     LDAP_ATTR_PHONE: str = "telephoneNumber"
 
+    # ── CAS (Central Authentication Service) ──────────────────
+    CAS_ENABLED: bool = False
+    CAS_SERVER_URL: str = ""         # e.g. https://cas.university.edu.cn
+    CAS_LOGIN_URL: str = ""          # e.g. /cas/login
+    CAS_VALIDATE_URL: str = ""       # e.g. /cas/serviceValidate (CAS 2.0) or /cas/p3/serviceValidate (CAS 3.0)
+    CAS_PROVIDER_NAME: str = "统一认证"
+    CAS_REDIRECT_URI: str = ""       # Backend callback URL
+    CAS_USER_ID_ATTR: str = "user"   # CAS attribute for user id (uid)
+    CAS_NAME_ATTR: str = "cn"        # CAS attribute for real name
+    CAS_EMAIL_ATTR: str = "mail"     # CAS attribute for email
+
     # ── OAuth2 / OIDC ─────────────────────────────────────────
     OAUTH2_ENABLED: bool = False
     OAUTH2_CLIENT_ID: str = ""

@@ -1,4 +1,5 @@
 import { get } from './index'
+import type { PaginatedResponse } from './documents'
 
 export interface DashboardOverview {
   total_tasks: number
@@ -12,7 +13,7 @@ export interface DashboardOverview {
   total_documents: number
 }
 
-export interface ActiveTaskItem {
+export interface KeyProjectItem {
   task_id: number
   title: string
   template_name: string
@@ -30,44 +31,17 @@ export interface RiskAlertItem {
   risk_type: string
   risk_level: string
   description: string
-  stage_name: string | null
-  days_stalled: number | null
-  days_overdue: number | null
+  stage_name: string
 }
 
-export interface StageFunnelItem {
-  stage_order: number
-  count: number
+export interface ProgressChartData {
+  funnel: { stage_order: number; count: number }[]
+  trend: { month: string; total: number; completed: number }[]
 }
 
-export interface TemplateDistItem {
+export interface TypeDistributionData {
   name: string
   count: number
-}
-
-export interface StatusDistItem {
-  status: string
-  label: string
-  count: number
-}
-
-export interface MonthlyTrendItem {
-  month: string
-  total: number
-  completed: number
-}
-
-export interface DeptWorkloadItem {
-  department_name: string
-  total_tasks: number
-  completed_tasks: number
-}
-
-export interface AdvancedAnalytics {
-  departments: DeptWorkloadItem[]
-  monthly_trend: MonthlyTrendItem[]
-  status_distribution: StatusDistItem[]
-  stage_funnel: StageFunnelItem[]
 }
 
 export interface PersonalStats {
@@ -80,12 +54,31 @@ export interface PersonalStats {
   status_distribution: { status: string; label: string; count: number }[]
 }
 
+export interface DepartmentWorkload {
+  department_name: string
+  total_tasks: number
+  completed_tasks: number
+}
+
+export interface MonthlyTrend {
+  month: string
+  total: number
+  completed: number
+}
+
+export interface AdvancedAnalytics {
+  monthly_trend: MonthlyTrend[]
+  department_workload: DepartmentWorkload[]
+  template_distribution: TypeDistributionData[]
+  status_distribution: { status: string; label: string; count: number }[]
+}
+
 export const dashboardApi = {
   getOverview: () => get<DashboardOverview>('/dashboard/overview'),
-  getActiveTasks: () => get<ActiveTaskItem[]>('/dashboard/active-tasks'),
+  getKeyProjects: () => get<KeyProjectItem[]>('/dashboard/key-projects'),
   getRisks: () => get<RiskAlertItem[]>('/dashboard/risks'),
-  getStageFunnel: () => get<StageFunnelItem[]>('/dashboard/stage-funnel'),
-  getTemplateDistribution: () => get<TemplateDistItem[]>('/dashboard/template-distribution'),
+  getProgressChart: (period?: string) => get<ProgressChartData>('/dashboard/progress-chart', { period }),
+  getTypeDistribution: () => get<TypeDistributionData[]>('/dashboard/type-distribution'),
   getPersonalStats: () => get<PersonalStats>('/dashboard/personal-stats'),
   getAdvancedAnalytics: () => get<AdvancedAnalytics>('/dashboard/advanced'),
 }

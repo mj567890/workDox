@@ -16,6 +16,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false },
   },
   {
+    path: '/auth/cas/callback',
+    name: 'CasCallback',
+    component: () => import('@/views/auth/CasCallbackView.vue'),
+    meta: { requiresAuth: false },
+  },
+  {
     path: '/dashboard',
     name: 'PublicDashboard',
     component: () => import('@/views/dashboard/PublicDashboardView.vue'),
@@ -52,6 +58,12 @@ const routes: RouteRecordRaw[] = [
         name: 'TaskTemplateEdit',
         component: () => import('@/views/tasks/TaskTemplateEditView.vue'),
         meta: { roles: ['admin', 'dept_leader'] },
+      },
+      {
+        path: 'tasks',
+        name: 'TaskCenter',
+        component: () => import('@/views/tasks/TaskCenterView.vue'),
+        meta: { title: '待办任务' },
       },
       {
         path: 'task-mgmt',
@@ -99,12 +111,6 @@ const routes: RouteRecordRaw[] = [
         path: 'admin/tags',
         name: 'TagManagement',
         component: () => import('@/views/admin/TagManagementView.vue'),
-        meta: { roles: ['admin'] },
-      },
-      {
-        path: 'admin/ai-config',
-        name: 'AIConfig',
-        component: () => import('@/views/admin/AIConfigView.vue'),
         meta: { roles: ['admin'] },
       },
       {

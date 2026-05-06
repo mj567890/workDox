@@ -22,6 +22,10 @@
         <el-icon><Folder /></el-icon>
         <span>文档中心</span>
       </el-menu-item>
+      <el-menu-item index="/tasks">
+        <el-icon><List /></el-icon>
+        <span>待办中心</span>
+      </el-menu-item>
       <el-menu-item index="/task-mgmt">
         <el-icon><Finished /></el-icon>
         <span>任务管理</span>
@@ -41,7 +45,6 @@
         <el-menu-item index="/admin/departments">部门管理</el-menu-item>
         <el-menu-item index="/admin/document-categories">文档分类</el-menu-item>
         <el-menu-item index="/admin/tags">标签管理</el-menu-item>
-        <el-menu-item index="/admin/ai-config">AI 配置</el-menu-item>
       </el-sub-menu>
       <el-menu-item index="/audit" v-if="canViewAuditLogs">
         <el-icon><Document /></el-icon>

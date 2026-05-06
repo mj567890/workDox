@@ -38,15 +38,15 @@
         </el-tab-pane>
       </el-tabs>
 
-      <div v-if="oauth2Providers.length > 0" class="sso-section">
+      <div v-if="ssoProviders.length > 0" class="sso-section">
         <el-divider>第三方登录</el-divider>
         <div class="sso-buttons">
           <el-button
-            v-for="p in oauth2Providers"
+            v-for="p in ssoProviders"
             :key="p.name"
             size="large"
             class="sso-btn"
-            @click="handleSSOLogin"
+            @click="handleSSOLogin(p.type)"
           >
             {{ p.name }} 登录
           </el-button>
@@ -70,7 +70,7 @@ const loading = ref(false)
 const formRef = ref()
 const activeTab = ref('local')
 const providers = ref<string[]>([])
-const oauth2Providers = ref<{ name: string; type: string }[]>([])
+const ssoProviders = ref<{ name: string; type: string }[]>([])
 
 const form = reactive({
   username: '',
@@ -86,7 +86,7 @@ onMounted(async () => {
   try {
     const res = await authApi.getProviders()
     providers.value = res.providers.filter((p): p is string => typeof p === 'string')
-    oauth2Providers.value = res.providers.filter(
+    ssoProviders.value = res.providers.filter(
       (p): p is { name: string; type: string } => typeof p !== 'string'
     ) as { name: string; type: string }[]
   } catch {
@@ -115,8 +115,12 @@ async function handleLogin(mode: string) {
   }
 }
 
-function handleSSOLogin() {
-  window.location.href = authApi.getOAuth2AuthorizeUrl()
+function handleSSOLogin(type: string) {
+  if (type === 'cas') {
+    window.location.href = authApi.getCasAuthorizeUrl()
+  } else {
+    window.location.href = authApi.getOAuth2AuthorizeUrl()
+  }
 }
 </script>
 

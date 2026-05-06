@@ -93,6 +93,7 @@
               <template #default="{ row }">{{ formatFileSize(row.file_size) }}</template>
             </el-table-column>
             <el-table-column prop="owner_name" label="上传者" width="100" />
+            <el-table-column prop="matter_title" label="所属事项" width="150" />
             <el-table-column label="标签" width="160">
               <template #default="{ row }">
                 <el-tag v-for="tag in row.tags" :key="tag.id" size="small" :color="tag.color" effect="light" class="mr-4">
@@ -128,6 +129,11 @@
     <!-- 上传对话框 - 集成拖拽上传组件 -->
     <el-dialog v-model="showUploader" title="上传文档" width="650px" @close="resetUpload">
       <el-form class="mb-20" label-width="80px">
+        <el-form-item label="所属事项">
+          <el-select v-model="uploadMatterId" placeholder="选择事项（可选）" clearable filterable>
+            <el-option v-for="m in uploadMatterList" :key="m.id" :label="m.title" :value="m.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="文档分类">
           <el-select v-model="uploadCategoryId" placeholder="选择分类（可选）" clearable>
             <el-option v-for="c in docStore.categories" :key="c.id" :label="c.name" :value="c.id" />
@@ -136,6 +142,7 @@
       </el-form>
 
       <DragUploadZone
+        :matter-id="uploadMatterId"
         :category-id="uploadCategoryId"
         accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.gif"
         @upload-success="onUploadSuccess"
@@ -153,6 +160,7 @@
 import { ref, onMounted } from 'vue'
 import { Upload, Folder, ArrowDown } from '@element-plus/icons-vue'
 import { useDocumentStore } from '@/stores/documents'
+import { mattersApi } from '@/api/matters'
 import { formatFileSize, formatDate } from '@/utils/format'
 import { usePagination } from '@/composables/usePagination'
 import FileTypeIcon from '@/components/common/FileTypeIcon.vue'
@@ -170,7 +178,9 @@ const filterFileType = ref('')
 const selectedCategory = ref<number | null>(null)
 const selectedTag = ref<number | null>(null)
 const showUploader = ref(false)
+const uploadMatterId = ref<number | null>(null)
 const uploadCategoryId = ref<number | null>(null)
+const uploadMatterList = ref<any[]>([])
 
 let searchTimer: ReturnType<typeof setTimeout>
 
@@ -218,6 +228,7 @@ async function handleExport(command: string) {
 }
 
 function resetUpload() {
+  uploadMatterId.value = null
   uploadCategoryId.value = null
 }
 
@@ -229,6 +240,11 @@ onMounted(async () => {
     fetchData(),
   ])
   loading.value = false
+  mattersApi.getList({ page_size: 100 }).then(res => {
+    uploadMatterList.value = res.items
+  }).catch(() => {
+    // matters API not available, dropdown will be empty
+  })
 })
 </script>
 

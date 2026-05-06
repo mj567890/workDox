@@ -49,6 +49,13 @@ export function useShortcuts() {
     // If focus is in an input area, skip the following shortcuts
     if (isInput) return
 
+    // Ctrl+N - Navigate to task management page
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+      e.preventDefault()
+      router.push('/task-mgmt')
+      return
+    }
+
     // Ctrl+B - Toggle sidebar collapse
     if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
       e.preventDefault()

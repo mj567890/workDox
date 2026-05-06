@@ -194,6 +194,15 @@ async def _check_document_access(user: User, doc: Document, db: AsyncSession):
     if doc.owner_id == user.id:
         return
 
+    # Dept leader can access documents of users in same department
+    if RoleCode.DEPT_LEADER in role_codes and user.department_id:
+        owner_result = await db.execute(
+            select(User.department_id).where(User.id == doc.owner_id)
+        )
+        owner_dept_id = owner_result.scalar_one_or_none()
+        if owner_dept_id == user.department_id:
+            return
+
     raise ForbiddenException(detail="Access denied to this document")
 
 
@@ -229,7 +238,7 @@ def _doc_to_out(d: Document) -> DocumentOut:
         status=d.status,
         current_version_id=d.current_version_id,
         current_version_no=current_version_no,
-        permission_scope=getattr(d, 'permission_scope', 'private'),
+        permission_scope=getattr(d, 'permission_scope', 'all'),
         is_deleted=d.is_deleted,
         tags=tags,
         created_at=d.created_at.isoformat() if d.created_at else None,
@@ -336,7 +345,7 @@ async def upload_document(
         storage_path=storage_path,
         description=description,
         owner_id=current_user.id,
-                category_id=category_id,
+        category_id=category_id,
         status="draft",
     )
     db.add(doc)
@@ -376,7 +385,7 @@ async def upload_document(
         select(Document)
         .options(
             selectinload(Document.owner),
-                        selectinload(Document.category),
+            selectinload(Document.category),
             selectinload(Document.tags),
         )
         .where(Document.id == doc.id)
@@ -478,7 +487,7 @@ async def complete_chunked_upload(
         storage_path=storage_path,
         description=data.description,
         owner_id=current_user.id,
-                category_id=data.category_id,
+        category_id=data.category_id,
         status="draft",
     )
     db.add(doc)
@@ -515,7 +524,7 @@ async def complete_chunked_upload(
         select(Document)
         .options(
             selectinload(Document.owner),
-                        selectinload(Document.category),
+            selectinload(Document.category),
             selectinload(Document.tags),
         )
         .where(Document.id == doc.id)
@@ -791,6 +800,26 @@ async def generate_preview(
     convert_to_html.delay(doc.id, doc.storage_path, doc.file_type)
 
     return {"detail": "HTML preview generation started"}
+
+
+@router.post("/{doc_id}/generate-embedding")
+async def generate_embedding(
+    doc_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Trigger embedding generation and AI summarization for an existing document."""
+    current_user_dict = _user_to_dict(current_user)
+    doc = await document_service.get_document(db, doc_id, current_user_dict)
+
+    if not doc.extracted_text:
+        return {"detail": "No extracted text available. Run text extraction first.", "embedding_started": False}
+
+    from app.tasks.embedding_tasks import embed_document_task, summarize_document_task
+    embed_document_task.delay(doc_id)
+    summarize_document_task.delay(doc_id)
+
+    return {"detail": "Embedding and summarization started", "embedding_started": True}
 
 
 @router.get("/{doc_id}/versions", response_model=list[VersionOut])
@@ -1172,6 +1201,10 @@ async def trigger_text_extraction(
             raise NotFoundException(resource="File data")
         extracted = await extract_and_store_text(db, doc_id, data, doc.file_type, doc.original_name)
         if extracted:
+            # Dispatch Celery tasks for embedding + summary generation
+            from app.tasks.embedding_tasks import embed_document_task, summarize_document_task
+            embed_document_task.delay(doc_id)
+            summarize_document_task.delay(doc_id)
             return {"detail": "Text extracted successfully", "extracted": True, "length": len(extracted)}
         else:
             return {"detail": "No text could be extracted from this file", "extracted": False}

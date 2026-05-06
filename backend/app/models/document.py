@@ -1,4 +1,4 @@
-from sqlalchemy import String, Boolean, Integer, DateTime, Text, ForeignKey, UniqueConstraint, Index, text
+from sqlalchemy import String, Boolean, Integer, Float, DateTime, Text, ForeignKey, UniqueConstraint, Index, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship, foreign
 from datetime import datetime
 from pgvector.sqlalchemy import Vector
@@ -29,6 +29,14 @@ class Tag(Base, TimestampMixin):
     documents: Mapped[list["Document"]] = relationship("Document", secondary="document_tag", back_populates="tags")
 
 
+# Association table for document-tag many-to-many
+class DocumentTag(Base):
+    __tablename__ = "document_tag"
+
+    document_id: Mapped[int] = mapped_column(ForeignKey("document.id"), primary_key=True)
+    tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), primary_key=True)
+
+
 class Document(Base, TimestampMixin):
     __tablename__ = "document"
 
@@ -43,25 +51,32 @@ class Document(Base, TimestampMixin):
     category_id: Mapped[int | None] = mapped_column(ForeignKey("document_category.id"))
     status: Mapped[str] = mapped_column(String(30), default="draft")
     current_version_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    permission_scope: Mapped[str] = mapped_column(String(30), default="private")
+    permission_scope: Mapped[str] = mapped_column(String(30), default="matter")
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     preview_pdf_path: Mapped[str | None] = mapped_column(String(500))
     preview_html_path: Mapped[str | None] = mapped_column(String(500))
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    embedding = mapped_column(Vector(512), nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    embedding = mapped_column(Vector(768), nullable=True)
 
     owner = relationship("User")
     category = relationship("DocumentCategory", back_populates="documents")
     tags: Mapped[list["Tag"]] = relationship("Tag", secondary="document_tag", back_populates="documents")
-    versions: Mapped[list["DocumentVersion"]] = relationship("DocumentVersion", back_populates="document", order_by="DocumentVersion.version_no.desc()")
+    versions: Mapped[list["DocumentVersion"]] = relationship(
+        "DocumentVersion", back_populates="document", order_by="DocumentVersion.version_no.desc()"
+    )
     current_version: Mapped["DocumentVersion | None"] = relationship(
         "DocumentVersion",
         primaryjoin="and_(foreign(Document.current_version_id) == DocumentVersion.id)",
         post_update=True,
     )
     edit_lock = relationship("DocumentEditLock", back_populates="document", uselist=False)
-    reviews: Mapped[list["DocumentReview"]] = relationship("DocumentReview", back_populates="document", order_by="DocumentReview.review_level")
-    chunks: Mapped[list["DocumentChunk"]] = relationship("DocumentChunk", back_populates="document", order_by="DocumentChunk.chunk_index")
+    reviews: Mapped[list["DocumentReview"]] = relationship(
+        "DocumentReview", back_populates="document", order_by="DocumentReview.review_level"
+    )
+    chunks: Mapped[list["DocumentChunk"]] = relationship(
+        "DocumentChunk", back_populates="document", order_by="DocumentChunk.chunk_index"
+    )
 
     __table_args__ = (
         Index("idx_document_search",
@@ -75,57 +90,40 @@ class DocumentVersion(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     document_id: Mapped[int] = mapped_column(ForeignKey("document.id"), nullable=False)
-    version_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    version_no: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     file_path: Mapped[str] = mapped_column(String(500), nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
     upload_user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
-    change_note: Mapped[str | None] = mapped_column(String(1000))
+    change_note: Mapped[str | None] = mapped_column(String(500))
     is_official: Mapped[bool] = mapped_column(Boolean, default=False)
     checksum: Mapped[str | None] = mapped_column(String(64))
 
-    document = relationship("Document", back_populates="versions", foreign_keys=[document_id])
+    document = relationship("Document", back_populates="versions")
     upload_user = relationship("User")
-
-    __table_args__ = (
-        UniqueConstraint("document_id", "version_no", name="uq_doc_version"),
-    )
-
-
-class DocumentTag(Base):
-    __tablename__ = "document_tag"
-
-    document_id: Mapped[int] = mapped_column(ForeignKey("document.id"), primary_key=True)
-    tag_id: Mapped[int] = mapped_column(ForeignKey("tag.id"), primary_key=True)
 
 
 class DocumentEditLock(Base, TimestampMixin):
     __tablename__ = "document_edit_lock"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    document_id: Mapped[int] = mapped_column(ForeignKey("document.id"), unique=True, nullable=False)
+    document_id: Mapped[int] = mapped_column(ForeignKey("document.id"), nullable=False)
     locked_by: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
-    locked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     document = relationship("Document", back_populates="edit_lock")
     locker = relationship("User")
 
 
 class DocumentReview(Base, TimestampMixin):
-    """Multi-level document approval review record."""
     __tablename__ = "document_review"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    document_id: Mapped[int] = mapped_column(ForeignKey("document.id"), nullable=False, index=True)
-    review_level: Mapped[int] = mapped_column(Integer, nullable=False)
+    document_id: Mapped[int] = mapped_column(ForeignKey("document.id"), nullable=False)
     reviewer_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending/approved/rejected
+    review_level: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
     comment: Mapped[str | None] = mapped_column(Text)
-    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     document = relationship("Document", back_populates="reviews")
     reviewer = relationship("User")
-
-    __table_args__ = (
-        UniqueConstraint("document_id", "review_level", name="uq_doc_review_level"),
-    )

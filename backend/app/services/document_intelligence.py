@@ -295,7 +295,7 @@ async def get_document_graph_data(
     # Get source document
     doc_result = await db.execute(
         select(Document)
-        .options(selectinload(Document.matter), selectinload(Document.tags))
+        .options(selectinload(Document.category), selectinload(Document.tags))
         .where(Document.id == doc_id, Document.is_deleted == False)
     )
     source = doc_result.scalars().first()
@@ -312,29 +312,29 @@ async def get_document_graph_data(
     links = []
     node_ids = {source.id}
 
-    # 1. Documents in the same matter
-    if source.matter_id:
-        matter_docs_result = await db.execute(
+    # 1. Documents in the same category
+    if source.category_id:
+        category_docs_result = await db.execute(
             select(Document).where(
-                Document.matter_id == source.matter_id,
+                Document.category_id == source.category_id,
                 Document.id != source.id,
                 Document.is_deleted == False,
             ).limit(10)
         )
-        for doc in matter_docs_result.scalars().all():
+        for doc in category_docs_result.scalars().all():
             if doc.id not in node_ids:
                 nodes.append({
                     "id": f"doc_{doc.id}",
                     "name": doc.original_name[:30],
                     "type": "document",
                     "symbolSize": 30,
-                    "category": 1,  # same matter
+                    "category": 1,  # same category
                 })
                 node_ids.add(doc.id)
             links.append({
                 "source": f"doc_{source.id}",
                 "target": f"doc_{doc.id}",
-                "label": "同事项",
+                "label": "同分类",
             })
 
     # 2. Documents with similar content (FTS)

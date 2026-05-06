@@ -9,6 +9,7 @@ from app.models.user import User
 from app.services.auth_service import AuthService
 from app.services.ldap_service import LdapService
 from app.services.oauth2_service import OAuth2Service
+from app.services.cas_service import CasService
 
 router = APIRouter()
 
@@ -72,6 +73,8 @@ async def get_providers():
     providers = ["local"]
     if settings.LDAP_ENABLED:
         providers.append("ldap")
+    if settings.CAS_ENABLED:
+        providers.append({"name": settings.CAS_PROVIDER_NAME, "type": "cas"})
     if settings.OAUTH2_ENABLED:
         providers.append({"name": settings.OAUTH2_PROVIDER_NAME, "type": "oauth2"})
     return {"providers": providers}
@@ -87,6 +90,39 @@ async def ldap_login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
         username=result["username"],
         real_name=result["real_name"],
     )
+
+
+# ── CAS / 高校统一认证 ──────────────────────────────────────────
+
+
+@router.get("/sso/cas/authorize")
+async def cas_authorize():
+    """Redirect to CAS server login page."""
+    service = CasService()
+    auth_url, _ = service.get_authorize_url()
+    return RedirectResponse(url=auth_url)
+
+
+@router.get("/sso/cas/callback")
+async def cas_callback(
+    ticket: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """CAS ticket validation callback.
+
+    CAS server redirects here after successful authentication.
+    Validates ticket and returns JWT to frontend.
+    """
+    service = CasService()
+    result = await service.validate_ticket(db, ticket)
+    settings = get_settings()
+    frontend_url = settings.CORS_ORIGINS[0]
+    return RedirectResponse(
+        url=f"{frontend_url}/auth/cas/callback?token={result['access_token']}"
+    )
+
+
+# ── OAuth2 / OIDC ──────────────────────────────────────────────
 
 
 @router.get("/oauth2/authorize")
