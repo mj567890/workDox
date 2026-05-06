@@ -160,7 +160,6 @@
 import { ref, onMounted } from 'vue'
 import { Upload, Folder, ArrowDown } from '@element-plus/icons-vue'
 import { useDocumentStore } from '@/stores/documents'
-import { mattersApi } from '@/api/matters'
 import { formatFileSize, formatDate } from '@/utils/format'
 import { usePagination } from '@/composables/usePagination'
 import FileTypeIcon from '@/components/common/FileTypeIcon.vue'
@@ -240,11 +239,8 @@ onMounted(async () => {
     fetchData(),
   ])
   loading.value = false
-  mattersApi.getList({ page_size: 100 }).then(res => {
-    uploadMatterList.value = res.items
-  }).catch(() => {
-    // matters API not available, dropdown will be empty
-  })
+  // Matters API removed — legacy matter system tables were dropped
+  uploadMatterList.value = []
 })
 </script>
 
