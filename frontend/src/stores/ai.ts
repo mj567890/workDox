@@ -6,6 +6,7 @@ import {
   type Message,
   type ChatResponse,
   type ProviderOption,
+  type Source,
 } from '@/api/ai'
 
 export const useAIStore = defineStore('ai', () => {
@@ -53,40 +54,81 @@ export const useAIStore = defineStore('ai', () => {
     currentMessages.value.push(userMsg, placeholder)
 
     loading.value = true
+    const controller = new AbortController()
+    let fullAnswer = ''
+    let sources: Source[] = []
+    let conversationId: number | null = null
+
     try {
-      const response = await aiApi.chat({
-        query,
-        document_ids: documentIds,
-        conversation_id: currentConversationId.value ?? undefined,
-        provider_id: selectedProviderId.value ?? undefined,
-      })
-      currentConversationId.value = response.conversation_id
-      // Replace placeholder with the actual answer
+      await aiApi.chatStream(
+        {
+          query,
+          document_ids: documentIds,
+          conversation_id: currentConversationId.value ?? undefined,
+          provider_id: selectedProviderId.value ?? undefined,
+        },
+        (event) => {
+          if (event.type === 'sources' && event.data) {
+            sources = event.data
+            // Update placeholder with sources
+            const idx = currentMessages.value.findIndex(m => m.id === placeholderId)
+            if (idx >= 0) {
+              currentMessages.value[idx] = {
+                ...currentMessages.value[idx],
+                sources: event.data,
+              }
+            }
+          } else if (event.type === 'token') {
+            fullAnswer += event.content || ''
+            // Update placeholder content in real-time
+            const idx = currentMessages.value.findIndex(m => m.id === placeholderId)
+            if (idx >= 0) {
+              currentMessages.value[idx] = {
+                ...currentMessages.value[idx],
+                content: fullAnswer || '正在思考...',
+              }
+            }
+          } else if (event.type === 'done') {
+            conversationId = event.conversation_id ?? null
+          } else if (event.type === 'error') {
+            throw new Error(event.content || '生成回答时出错')
+          }
+        },
+        controller.signal,
+      )
+
+      // Finalize the message
+      currentConversationId.value = conversationId
       const idx = currentMessages.value.findIndex(m => m.id === placeholderId)
       if (idx >= 0) {
         currentMessages.value[idx] = {
           id: Date.now() + 2,
           role: 'assistant',
-          content: response.answer,
-          sources: response.sources,
+          content: fullAnswer || '（无内容）',
+          sources: sources,
           created_at: new Date().toISOString(),
         }
       }
       await fetchConversations()
-      return response
-    } catch {
+      return {
+        answer: fullAnswer,
+        sources,
+        conversation_id: conversationId ?? 0,
+      }
+    } catch (err: any) {
+      controller.abort() // Cancel the fetch stream
       // Remove the placeholder on error
       const idx = currentMessages.value.findIndex(m => m.id === placeholderId)
       if (idx >= 0) {
         currentMessages.value[idx] = {
           id: placeholderId,
           role: 'assistant',
-          content: '抱歉，请求失败，请重试。',
+          content: err?.name === 'AbortError' ? '请求已取消' : '抱歉，请求失败，请重试。',
           sources: null,
           created_at: new Date().toISOString(),
         }
       }
-      throw new Error() // re-throw for component-level handling
+      throw new Error()
     } finally {
       loading.value = false
     }

@@ -293,23 +293,40 @@ async def run_agent_stream(
             })
 
     if chat_error_occurred:
-        # Yield the error as a stream token for the frontend to display
         yield "抱歉，AI 服务暂时不可用，请稍后重试。"
         return
 
-    # Stream the final answer via a fresh completion for token-by-token output.
-    # Use working_messages (with full tool-call context) so the LLM has all context.
+    # Stream the final answer via a fresh completion with tool_choice="none"
+    # to prevent the model from emitting tool-call tokens from conversation history.
     final_messages = list(working_messages)
     if final_answer:
         final_messages.append({"role": "assistant", "content": final_answer})
 
     try:
-        async for token in chat_stream(provider, final_messages, temperature):
-            yield token
+        body = _build_body(provider, final_messages, temperature, stream=True)
+        body["tool_choice"] = "none"
+        async with _create_client(provider) as client:
+            async with client.stream(
+                "POST",
+                "/chat/completions",
+                json=body,
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if line.startswith("data: "):
+                        data_str = line[6:]
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data_str)
+                        except json.JSONDecodeError:
+                            continue
+                        delta = chunk["choices"][0].get("delta", {})
+                        if "content" in delta:
+                            yield delta["content"]
     except Exception:
         logger.exception("Final stream failed")
         if final_answer:
             yield final_answer
         else:
             yield "抱歉，生成回答时出错。"
-        return
