@@ -57,7 +57,7 @@ class Document(Base, TimestampMixin):
     preview_html_path: Mapped[str | None] = mapped_column(String(500))
     extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    embedding = mapped_column(Vector(768), nullable=True)
+    embedding = mapped_column(Vector(512), nullable=True)
 
     owner = relationship("User")
     category = relationship("DocumentCategory", back_populates="documents")
@@ -108,8 +108,8 @@ class DocumentEditLock(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     document_id: Mapped[int] = mapped_column(ForeignKey("document.id"), nullable=False)
     locked_by: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
+    locked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     document = relationship("Document", back_populates="edit_lock")
     locker = relationship("User")
@@ -124,6 +124,7 @@ class DocumentReview(Base, TimestampMixin):
     review_level: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String(20), default="pending")
     comment: Mapped[str | None] = mapped_column(Text)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     document = relationship("Document", back_populates="reviews")
     reviewer = relationship("User")

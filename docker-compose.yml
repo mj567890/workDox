@@ -151,10 +151,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1g
+          memory: 2g
           cpus: '1.0'
         reservations:
-          memory: 256m
+          memory: 512m
           cpus: '0.25'
 
   celery-beat:

@@ -194,37 +194,45 @@ class RAGService:
     ) -> str:
         """Build the system prompt from vector context (shared by ask/ask_stream)."""
         prompt = (
-            "你是一个专业的文档管理助手（WorkDox）。你可以访问文档库并提供帮助。\n"
+            "你是一个专业的文档管理助手（WorkDox）。你可以帮助用户理解和分析已上传的文档内容。\n"
             "\n"
-            "你有以下工具可用（注意：工具只返回文档元数据——名称、类型、状态等，不含正文内容）：\n"
+            "你有以下工具可用：\n"
             "- search_documents: 按关键词搜索文档（匹配名称和描述）\n"
-            "- list_all_documents: 列出文档库中的文档\n"
-            "- get_document_detail: 查看指定文档的详细信息（不含正文）\n"
+            "- list_all_documents: 列出文档库中的所有文档\n"
+            "- get_document_detail: 查看指定文档的详细信息\n"
             "- get_library_overview: 获取文档库整体统计概况\n"
+            "- get_document_content: 读取文档的正文内容，可按章节标题（如'附录C'、'第三章'、'6'、'6.1'）定位\n"
         )
         if vector_context:
             prompt += (
                 "\n"
-                "以下是从文档中检索到的相关内容（用于回答内容类问题）：\n"
+                "系统已根据用户问题从文档库中检索到以下相关内容（可能不完整）：\n"
                 f"{vector_context}\n"
                 "\n"
-                "处理规则：\n"
-                "1. 内容类问题（如'XX是什么'、'XX有哪些步骤'）→ 直接根据上面的检索内容回答，不要调用工具\n"
-                "2. 搜索/查找类问题（如'找一下关于XX的文档'）→ 使用 search_documents 工具\n"
-                "3. 统计/列表类问题（如'有多少文档'、'列出所有文档'）→ 使用 get_library_overview 或 list_all_documents\n"
-                "4. 仅根据实际数据回答，不要编造信息\n"
-                "5. 如果检索内容不足以回答问题，告知用户并建议使用工具搜索\n"
+                "处理规则（按优先级从高到低）：\n"
+                "1. 提取/导出类问题（如'导出第六章'、'把附录C整理出来'、'生成某章节的markdown文件'）\n"
+                "   → 必须使用 get_document_content 工具，指定文档ID和章节关键词（如 section='第六章' 或 section='6'）。\n"
+                "     上面的检索片段不完整，不能替代完整章节内容。\n"
+                "2. 内容类问题（如'XX是什么'、'XX包含哪些内容'、'总结一下某文档'）\n"
+                "   → 如果上面的检索内容已足够，直接回答；不够则使用 get_document_content 补充。\n"
+                "3. 搜索/查找类问题（如'找一下关于XX的文档'、'有哪些文档提到Y'）→ 使用 search_documents\n"
+                "4. 统计/列表类问题（如'有多少文档'、'列出所有文档'）→ 使用 get_library_overview 或 list_all_documents\n"
+                "5. 仅根据实际数据回答，不要编造信息\n"
                 "6. 使用中文回答"
             )
         else:
             prompt += (
                 "\n"
-                "处理规则：\n"
-                "1. 搜索/查找类问题（如'找一下关于XX的文档'）→ 使用 search_documents 工具\n"
-                "2. 统计/列表类问题（如'有多少文档'、'列出所有文档'）→ 使用 get_library_overview 或 list_all_documents\n"
-                "3. 仅根据实际数据回答，不要编造信息\n"
-                "4. 如果无法回答，建议用户先上传相关文档\n"
-                "5. 使用中文回答"
+                "注意：当前查询未通过向量检索到相关文档内容。但你仍可以通过工具获取文档信息。\n"
+                "\n"
+                "处理规则（按优先级从高到低）：\n"
+                "1. 提取/导出类问题（如'导出第六章'、'把附录C整理出来'）\n"
+                "   → 必须使用 get_document_content 工具，指定文档ID和章节关键词。\n"
+                "2. 搜索/查找类问题 → 使用 search_documents 工具，获取文档ID后再读取正文\n"
+                "3. 统计/列表类问题 → 使用 get_library_overview 或 list_all_documents\n"
+                "4. 内容类问题 → 先获取文档ID，然后使用 get_document_content 工具读取正文\n"
+                "5. 仅根据实际数据回答，不要编造信息\n"
+                "6. 使用中文回答"
             )
         return prompt
 

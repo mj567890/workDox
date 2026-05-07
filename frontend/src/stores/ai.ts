@@ -33,6 +33,25 @@ export const useAIStore = defineStore('ai', () => {
     query: string,
     documentIds?: number[]
   ): Promise<ChatResponse> {
+    // Push user message immediately so the user sees their question
+    const userMsg: Message = {
+      id: Date.now(),
+      role: 'user',
+      content: query,
+      sources: null,
+      created_at: new Date().toISOString(),
+    }
+    // Show a thinking placeholder while waiting for the AI
+    const placeholderId = Date.now() + 1
+    const placeholder: Message = {
+      id: placeholderId,
+      role: 'assistant',
+      content: '正在思考...',
+      sources: null,
+      created_at: new Date().toISOString(),
+    }
+    currentMessages.value.push(userMsg, placeholder)
+
     loading.value = true
     try {
       const response = await aiApi.chat({
@@ -42,24 +61,32 @@ export const useAIStore = defineStore('ai', () => {
         provider_id: selectedProviderId.value ?? undefined,
       })
       currentConversationId.value = response.conversation_id
-      currentMessages.value.push(
-        {
-          id: Date.now(),
-          role: 'user',
-          content: query,
-          sources: null,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: Date.now() + 1,
+      // Replace placeholder with the actual answer
+      const idx = currentMessages.value.findIndex(m => m.id === placeholderId)
+      if (idx >= 0) {
+        currentMessages.value[idx] = {
+          id: Date.now() + 2,
           role: 'assistant',
           content: response.answer,
           sources: response.sources,
           created_at: new Date().toISOString(),
         }
-      )
+      }
       await fetchConversations()
       return response
+    } catch {
+      // Remove the placeholder on error
+      const idx = currentMessages.value.findIndex(m => m.id === placeholderId)
+      if (idx >= 0) {
+        currentMessages.value[idx] = {
+          id: placeholderId,
+          role: 'assistant',
+          content: '抱歉，请求失败，请重试。',
+          sources: null,
+          created_at: new Date().toISOString(),
+        }
+      }
+      throw new Error() // re-throw for component-level handling
     } finally {
       loading.value = false
     }

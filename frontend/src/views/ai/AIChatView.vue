@@ -64,7 +64,7 @@
             </el-avatar>
           </div>
           <div class="message-content">
-            <div class="message-text">{{ msg.content }}</div>
+            <div class="message-text" :class="{ thinking: msg.content === '正在思考...' }">{{ msg.content }}</div>
             <div v-if="msg.sources && msg.sources.length > 0" class="message-sources">
               <el-collapse>
                 <el-collapse-item title="参考来源">
@@ -263,6 +263,14 @@ function scrollToBottom() {
   border-radius: 8px;
   line-height: 1.6;
   white-space: pre-wrap;
+}
+.message-text.thinking {
+  color: var(--el-text-color-secondary);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 .message-row.user .message-text {
   background: var(--el-color-primary-light-9);
