@@ -48,8 +48,9 @@ async function handleSubmit() {
     await authApi.forgotPassword(form.email)
     ElMessage.success('如果该邮箱已注册，重置链接已发送')
     router.push('/login')
-  } catch {
-    ElMessage.error('发送失败，请稍后重试')
+  } catch (err: any) {
+    const detail = err?.response?.data?.detail
+    ElMessage.error(typeof detail === 'string' ? detail : '发送失败，请稍后重试')
   } finally {
     loading.value = false
   }

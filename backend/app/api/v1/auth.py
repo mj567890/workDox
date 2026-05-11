@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -196,11 +196,14 @@ async def get_me(
 @router.post("/forgot-password")
 @limiter.limit("3/minute")
 async def forgot_password(body: ForgotPasswordRequest, request: Request, db: AsyncSession = Depends(get_db)):
-    """Send a password-reset email. Always returns success to prevent user enumeration."""
+    """Send a password-reset email. Returns error only on SMTP failure."""
     settings = get_settings()
     frontend_url = settings.CORS_ORIGINS[0]
     reset_url_base = f"{frontend_url}/auth/reset-password"
-    await AuthService().forgot_password(db, body.email, reset_url_base)
+    try:
+        await AuthService().forgot_password(db, body.email, reset_url_base)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
     return {"detail": "If the email is registered, a password reset link has been sent."}
 
 

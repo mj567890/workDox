@@ -118,9 +118,14 @@ class AuthService:
 
     async def forgot_password(
         self, db: AsyncSession, email: str, reset_url_base: str
-    ) -> None:
+    ) -> bool:
         """Process forgot-password: generate token, store hash, send email.
-        Always returns None to prevent user enumeration."""
+
+        Returns:
+            True  = email sent successfully → show generic success
+            False = user not found → show generic success (anti-enumeration)
+        Raises on email send failure so the API can return an error.
+        """
         from app.config import get_settings
         from app.utils.email_sender import email_sender
 
@@ -136,7 +141,7 @@ class AuthService:
 
         if not user:
             logger.info("Forgot-password for unknown/disallowed email: %s", email)
-            return
+            return False
 
         token = create_reset_token(user.id)
         user.reset_token_hash = hash_password(token)
@@ -146,7 +151,7 @@ class AuthService:
         await db.commit()
 
         reset_url = f"{reset_url_base}?token={token}"
-        await email_sender.send(
+        sent = await email_sender.send(
             to_email=email,
             template_name="reset_password",
             context={
@@ -155,7 +160,17 @@ class AuthService:
                 "expire_minutes": settings.RESET_TOKEN_EXPIRE_MINUTES,
             },
         )
+
+        if not sent:
+            # Roll back the token so no dangling reset token exists
+            user.reset_token_hash = None
+            user.reset_token_expires = None
+            await db.commit()
+            logger.warning("Password reset email FAILED for user_id=%d email=%s", user.id, email)
+            raise Exception("邮件发送失败，请检查 SMTP 配置或稍后重试")
+
         logger.info("Password reset email sent to user_id=%d email=%s", user.id, email)
+        return True
 
     async def _verify_reset_token(self, db: AsyncSession, token: str) -> User:
         """Validate a reset token and return the user. Raises on any failure."""
