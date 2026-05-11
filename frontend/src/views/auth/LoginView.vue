@@ -108,8 +108,12 @@ async function handleLogin(mode: string) {
     }
     ElMessage.success('登录成功')
     router.push('/')
-  } catch {
-    // Error handled by interceptor
+  } catch (err: any) {
+    // Show error from response if interceptor didn't handle it
+    const detail = err?.response?.data?.detail
+    if (detail) {
+      ElMessage.error(typeof detail === 'string' ? detail : '登录失败，请重试')
+    }
   } finally {
     loading.value = false
   }

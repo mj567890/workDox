@@ -39,7 +39,12 @@ instance.interceptors.response.use(
       switch (status) {
         case 401:
           localStorage.removeItem('token')
-          router.push('/login')
+          // If already on login page, show the error instead of silent redirect
+          if (router.currentRoute.value.path === '/login') {
+            ElMessage.error(msg(data.detail) || '用户名或密码错误')
+          } else {
+            router.push('/login')
+          }
           break
         case 403:
           ElMessage.error(msg(data.detail) || '权限不足')
