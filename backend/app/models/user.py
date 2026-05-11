@@ -1,4 +1,6 @@
-from sqlalchemy import String, ForeignKey, Column, Integer, Table
+from datetime import datetime
+
+from sqlalchemy import String, ForeignKey, Column, Integer, Table, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -26,6 +28,8 @@ class User(Base, TimestampMixin):
     auth_provider: Mapped[str] = mapped_column(String(20), default="local")  # local, ldap, oauth2
     oauth_provider: Mapped[str | None] = mapped_column(String(50))  # oidc, generic
     oauth_subject: Mapped[str | None] = mapped_column(String(200), unique=True)  # OAuth2/OIDC sub claim
+    reset_token_hash: Mapped[str | None] = mapped_column(String(255))
+    reset_token_expires: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     department = relationship("Department", back_populates="users")
     roles: Mapped[list["Role"]] = relationship("Role", secondary=user_role, back_populates="users")

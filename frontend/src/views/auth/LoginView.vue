@@ -18,6 +18,9 @@
                 登 录
               </el-button>
             </el-form-item>
+            <div class="forgot-link">
+              <router-link to="/auth/forgot-password">忘记密码？</router-link>
+            </div>
           </el-form>
         </el-tab-pane>
 
@@ -167,5 +170,18 @@ function handleSSOLogin(type: string) {
 }
 .sso-btn {
   flex: 1;
+}
+.forgot-link {
+  text-align: right;
+  margin-top: -8px;
+  margin-bottom: 8px;
+}
+.forgot-link a {
+  color: #409eff;
+  font-size: 13px;
+  text-decoration: none;
+}
+.forgot-link a:hover {
+  text-decoration: underline;
 }
 </style>

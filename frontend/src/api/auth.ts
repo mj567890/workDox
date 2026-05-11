@@ -1,4 +1,4 @@
-import { get, post } from './index'
+import { get, post, postPublic } from './index'
 
 export interface LoginRequest {
   username: string
@@ -34,4 +34,8 @@ export const authApi = {
   getProviders: () => get<ProvidersResponse>('/auth/providers'),
   getOAuth2AuthorizeUrl: () => '/api/v1/auth/oauth2/authorize',
   getCasAuthorizeUrl: () => '/api/v1/auth/sso/cas/authorize',
+  forgotPassword: (email: string) =>
+    postPublic<{ detail: string }>('/auth/forgot-password', { email }),
+  resetPassword: (token: string, newPassword: string) =>
+    postPublic<{ detail: string }>('/auth/reset-password', { token, new_password: newPassword }),
 }

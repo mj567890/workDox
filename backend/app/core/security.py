@@ -41,3 +41,21 @@ def decode_token(token: str) -> dict:
         return payload
     except jwt.PyJWTError:
         raise ValueError("Invalid token")
+
+
+def create_reset_token(user_id: int) -> str:
+    """Create a short-lived JWT for password reset with purpose claim."""
+    settings = get_settings()
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.RESET_TOKEN_EXPIRE_MINUTES)
+    to_encode = {"sub": str(user_id), "purpose": "password_reset", "exp": expire}
+    return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def decode_reset_token(token: str) -> dict | None:
+    """Decode and validate a password-reset JWT. Returns payload or None."""
+    payload = decode_access_token(token)
+    if payload is None:
+        return None
+    if payload.get("purpose") != "password_reset":
+        return None
+    return payload

@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from sqlalchemy import select
@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.user import User
-from app.core.security import verify_password, create_access_token
+from app.core.security import verify_password, hash_password, create_access_token, create_reset_token, decode_reset_token
 from app.core.exceptions import UnauthorizedException, NotFoundException
 
 logger = logging.getLogger(__name__)
@@ -115,3 +115,88 @@ class AuthService:
             "status": user.status,
             "created_at": user.created_at.isoformat() if user.created_at else None,
         }
+
+    async def forgot_password(
+        self, db: AsyncSession, email: str, reset_url_base: str
+    ) -> None:
+        """Process forgot-password: generate token, store hash, send email.
+        Always returns None to prevent user enumeration."""
+        from app.config import get_settings
+        from app.utils.email_sender import email_sender
+
+        settings = get_settings()
+
+        stmt = select(User).where(
+            User.email == email,
+            User.status == "active",
+            User.auth_provider == "local",
+        )
+        result = await db.execute(stmt)
+        user = result.scalars().first()
+
+        if not user:
+            logger.info("Forgot-password for unknown/disallowed email: %s", email)
+            return
+
+        token = create_reset_token(user.id)
+        user.reset_token_hash = hash_password(token)
+        user.reset_token_expires = datetime.now(timezone.utc) + timedelta(
+            minutes=settings.RESET_TOKEN_EXPIRE_MINUTES
+        )
+        await db.commit()
+
+        reset_url = f"{reset_url_base}?token={token}"
+        await email_sender.send(
+            to_email=email,
+            template_name="reset_password",
+            context={
+                "username": user.username,
+                "reset_url": reset_url,
+                "expire_minutes": settings.RESET_TOKEN_EXPIRE_MINUTES,
+            },
+        )
+        logger.info("Password reset email sent to user_id=%d email=%s", user.id, email)
+
+    async def _verify_reset_token(self, db: AsyncSession, token: str) -> User:
+        """Validate a reset token and return the user. Raises on any failure."""
+        payload = decode_reset_token(token)
+        if not payload:
+            raise UnauthorizedException(detail="Invalid or expired reset token")
+
+        user_id = int(payload["sub"])
+
+        stmt = select(User).where(User.id == user_id, User.status == "active")
+        result = await db.execute(stmt)
+        user = result.scalars().first()
+
+        if not user:
+            raise UnauthorizedException(detail="Invalid or expired reset token")
+
+        if user.auth_provider != "local":
+            raise UnauthorizedException(detail="Password reset is only available for local accounts")
+
+        if user.reset_token_hash is None or user.reset_token_expires is None:
+            raise UnauthorizedException(detail="Invalid or expired reset token")
+
+        if user.reset_token_expires < datetime.now(timezone.utc):
+            user.reset_token_hash = None
+            user.reset_token_expires = None
+            await db.commit()
+            raise UnauthorizedException(detail="Reset token has expired")
+
+        if not verify_password(token, user.reset_token_hash):
+            raise UnauthorizedException(detail="Invalid reset token")
+
+        return user
+
+    async def reset_password(
+        self, db: AsyncSession, token: str, new_password: str
+    ) -> None:
+        """Reset a user's password using a valid reset token."""
+        user = await self._verify_reset_token(db, token)
+
+        user.password_hash = hash_password(new_password)
+        user.reset_token_hash = None
+        user.reset_token_expires = None
+        await db.commit()
+        logger.info("Password reset completed for user_id=%d", user.id)

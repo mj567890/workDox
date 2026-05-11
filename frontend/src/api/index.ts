@@ -105,3 +105,7 @@ publicInstance.interceptors.response.use(
 export function getPublic<T = any>(url: string, params?: any): Promise<T> {
   return publicInstance.get(url, { params })
 }
+
+export function postPublic<T = any>(url: string, data?: any): Promise<T> {
+  return publicInstance.post(url, data)
+}

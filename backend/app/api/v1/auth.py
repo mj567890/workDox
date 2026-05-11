@@ -2,7 +2,7 @@ import logging
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -51,6 +51,15 @@ class UserInfoResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=8, max_length=128)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -182,3 +191,22 @@ async def get_me(
             for r in result["roles"]
         ],
     )
+
+
+@router.post("/forgot-password")
+@limiter.limit("3/minute")
+async def forgot_password(body: ForgotPasswordRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    """Send a password-reset email. Always returns success to prevent user enumeration."""
+    settings = get_settings()
+    frontend_url = settings.CORS_ORIGINS[0]
+    reset_url_base = f"{frontend_url}/auth/reset-password"
+    await AuthService().forgot_password(db, body.email, reset_url_base)
+    return {"detail": "If the email is registered, a password reset link has been sent."}
+
+
+@router.post("/reset-password")
+@limiter.limit("5/minute")
+async def reset_password(body: ResetPasswordRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    """Reset password using a valid reset token."""
+    await AuthService().reset_password(db, body.token, body.new_password)
+    return {"detail": "Password has been reset successfully."}

@@ -94,6 +94,21 @@ TEMPLATES = {
 <p style="color:#999;font-size:12px;">此邮件由 ODMS 系统自动发送，请勿回复。</p>
 """
     },
+    "reset_password": {
+        "subject": "【ODMS】密码重置",
+        "body": """
+<h3>您好, {{ username }}</h3>
+<p>您正在为 WorkDox 账号 <strong>{{ username }}</strong> 重置密码。</p>
+<div style="background:#f5f5f5;padding:16px;border-radius:4px;margin:12px 0;">
+  <p>请点击以下链接设置新密码（{{ expire_minutes }} 分钟内有效）：</p>
+  <p><a href="{{ reset_url }}" style="color:#409eff;font-size:16px;">重置密码</a></p>
+</div>
+<p>如果链接不可点击，请复制以下地址到浏览器：</p>
+<p style="color:#999;font-size:12px;word-break:break-all;">{{ reset_url }}</p>
+<p style="color:#909399;font-size:12px;">如果您没有请求重置密码，请忽略此邮件。</p>
+<p style="color:#999;font-size:12px;">此邮件由 ODMS 系统自动发送，请勿回复。</p>
+"""
+    },
 }
 
 # Jinja2 env

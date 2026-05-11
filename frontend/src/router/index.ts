@@ -22,6 +22,18 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false },
   },
   {
+    path: '/auth/forgot-password',
+    name: 'ForgotPassword',
+    component: () => import('@/views/auth/ForgotPasswordView.vue'),
+    meta: { requiresAuth: false },
+  },
+  {
+    path: '/auth/reset-password',
+    name: 'ResetPassword',
+    component: () => import('@/views/auth/ResetPasswordView.vue'),
+    meta: { requiresAuth: false },
+  },
+  {
     path: '/dashboard',
     name: 'PublicDashboard',
     component: () => import('@/views/dashboard/PublicDashboardView.vue'),
@@ -151,8 +163,8 @@ const router = createRouter({
 router.beforeEach(async (to, _from, next) => {
   const token = localStorage.getItem('token')
 
-  // Redirect away from login page if already authenticated
-  if (to.path === '/login') {
+  // Redirect away from auth pages if already authenticated
+  if (to.path === '/login' || to.path === '/auth/forgot-password' || to.path === '/auth/reset-password') {
     if (token) {
       next('/')
     } else {
